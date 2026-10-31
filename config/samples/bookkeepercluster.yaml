@@ -1,0 +1,14 @@
+apiVersion: pulsar.songof.dev/v1
+kind: BookKeeperCluster
+metadata:
+  name: demo-bookkeeper
+spec:
+  replicas: 3
+  image: apache/bookkeeper:latest
+  storage:
+    journalPVC:
+      storageClassName: standard
+      size: 10Gi
+    ledgerPVC:
+      storageClassName: standard
+      size: 50Gi

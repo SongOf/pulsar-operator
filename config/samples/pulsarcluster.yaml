@@ -1,0 +1,15 @@
+apiVersion: pulsar.songof.dev/v1
+kind: PulsarCluster
+metadata:
+  name: demo-pulsar
+spec:
+  brokers: 3
+  bookies: 3
+  image: apachepulsar/pulsar:latest
+  storage:
+    journalPVC:
+      storageClassName: standard
+      size: 10Gi
+    ledgerPVC:
+      storageClassName: standard
+      size: 50Gi

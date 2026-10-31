@@ -9,6 +9,7 @@ A Kubernetes operator and web console for Apache Pulsar and BookKeeper cluster o
 - Requires BookKeeper journal and ledger storage to be expressed as PV/PVC-backed sizes.
 - Provides a React management console for viewing cluster status and executing common operations.
 - Includes a lightweight Go management server with REST endpoints suitable for wiring to Kubernetes reconciliation.
+- Documents the broader production scope needed for full Pulsar and BookKeeper operational ownership in `docs/operator-scope.md`.
 
 ## Quick start
 

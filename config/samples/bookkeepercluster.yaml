@@ -1,14 +1,20 @@
-apiVersion: pulsar.songof.dev/v1
+# A BookKeeper cluster on its own, against an existing ZooKeeper. Within a PulsarCluster, configure the bookies
+# in spec.bookkeeper instead; the operator creates this resource for you.
+apiVersion: pulsar.songof.dev/v1alpha1
 kind: BookKeeperCluster
 metadata:
-  name: demo-bookkeeper
+  name: bookkeeper
+  namespace: bookkeeper
 spec:
+  zookeeper: zk-0.zk.bookkeeper.svc.cluster.local:2181,zk-1.zk.bookkeeper.svc.cluster.local:2181,zk-2.zk.bookkeeper.svc.cluster.local:2181
+  image: apachepulsar/pulsar:4.0.14
   replicas: 3
-  image: apache/bookkeeper:latest
+  minReplicas: 3
   storage:
-    journalPVC:
-      storageClassName: standard
+    journal:
       size: 10Gi
-    ledgerPVC:
-      storageClassName: standard
+    ledger:
       size: 50Gi
+    reclaimPolicy: Retain
+  autoRecovery:
+    replicas: 1

@@ -1,15 +1,60 @@
-apiVersion: pulsar.songof.dev/v1
+# A small but complete Pulsar cluster: 3 ZooKeeper servers, 3 bookies with journal and ledger PVCs, 2 brokers and
+# a proxy. Sizes suit a test cluster; raise memory and disks for production.
+apiVersion: pulsar.songof.dev/v1alpha1
 kind: PulsarCluster
 metadata:
-  name: demo-pulsar
+  name: demo
+  namespace: pulsar
 spec:
-  brokers: 3
-  bookies: 3
-  image: apachepulsar/pulsar:latest
-  storage:
-    journalPVC:
-      storageClassName: standard
-      size: 10Gi
-    ledgerPVC:
-      storageClassName: standard
-      size: 50Gi
+  image: apachepulsar/pulsar:4.0.14
+  zookeeper:
+    replicas: 3
+    storage:
+      size: 5Gi
+    jvm:
+      heap: 512m
+    resources:
+      requests: {cpu: 200m, memory: 1Gi}
+  bookkeeper:
+    replicas: 3
+    minReplicas: 3
+    storage:
+      journal:
+        size: 5Gi
+      ledger:
+        size: 20Gi
+      reclaimPolicy: Retain
+    jvm:
+      heap: 1g
+      directMemory: 1g
+    resources:
+      requests: {cpu: 500m, memory: 2Gi}
+    config:
+      # Bookies on small disks: stop writing at 90% and accept again below 85%.
+      diskUsageThreshold: "0.90"
+      diskUsageLwmThreshold: "0.85"
+  broker:
+    replicas: 2
+    jvm:
+      heap: 1g
+      directMemory: 1g
+    resources:
+      requests: {cpu: 500m, memory: 2Gi}
+    config:
+      managedLedgerDefaultEnsembleSize: "2"
+      managedLedgerDefaultWriteQuorum: "2"
+      managedLedgerDefaultAckQuorum: "2"
+  proxy:
+    enabled: true
+    replicas: 1
+    serviceType: ClusterIP
+  # Prometheus with a persistent volume, queried by the console dashboard.
+  monitoring:
+    enabled: true
+    prometheus:
+      retention: 15d
+      storage:
+        size: 20Gi
+      # retentionSize defaults to 80% of the volume.
+      # remoteWrite:
+      #   - url: http://vminsert.monitoring:8480/insert/0/prometheus/api/v1/write

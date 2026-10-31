@@ -1,0 +1,32 @@
+# For an existing Prometheus run by the Prometheus Operator, instead of the Prometheus pulsar-operator deploys.
+# Apply it, then set spec.monitoring.prometheusURL on the cluster to that Prometheus.
+#
+# The console's queries select series by the labels namespace, pulsar_cluster, component and pod; the
+# relabelings below set them the same way the operator's own Prometheus does.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: pulsar
+spec:
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      app.kubernetes.io/managed-by: pulsar-operator
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [broker, proxy, bookie, zookeeper]
+  podMetricsEndpoints:
+    - relabelings:
+        # Scrape the port and path every component advertises in its prometheus.io annotations.
+        - sourceLabels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          regex: "(.+);(\\d+)"
+          replacement: "$1:$2"
+          targetLabel: __address__
+        - sourceLabels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          targetLabel: __metrics_path__
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          targetLabel: pulsar_cluster
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          targetLabel: component

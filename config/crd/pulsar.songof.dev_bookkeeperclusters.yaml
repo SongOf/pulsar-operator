@@ -1,0 +1,822 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: bookkeeperclusters.pulsar.songof.dev
+spec:
+  group: pulsar.songof.dev
+  names:
+    kind: BookKeeperCluster
+    listKind: BookKeeperClusterList
+    plural: bookkeeperclusters
+    shortNames:
+    - bkc
+    singular: bookkeepercluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.replicas
+      name: Bookies
+      type: integer
+    - jsonPath: .status.bookies.readyReplicas
+      name: Ready
+      type: integer
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: BookKeeperCluster is a BookKeeper cluster managed by the operator.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BookKeeperClusterSpec defines a BookKeeper cluster.
+            properties:
+              autoRecovery:
+                description: |-
+                  AutoRecoverySpec configures the BookKeeper auto-recovery workers, which re-replicate the ledgers of lost or
+                  decommissioned bookies.
+                properties:
+                  config:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Config entries are written into the component's configuration file (broker.conf, bookkeeper.conf,
+                      zookeeper.conf or proxy.conf). Changing them triggers a rolling restart.
+                    type: object
+                  enabled:
+                    default: true
+                    type: boolean
+                  image:
+                    description: Image overrides the cluster image for this component.
+                    type: string
+                  jvm:
+                    description: JVMSpec configures the JVM of a component.
+                    properties:
+                      directMemory:
+                        description: DirectMemory is -XX:MaxDirectMemorySize, for
+                          example 1g.
+                        type: string
+                      extraOptions:
+                        description: ExtraOptions are appended to the JVM options
+                          as written.
+                        type: string
+                      heap:
+                        description: Heap is the -Xms/-Xmx size, for example 1g or
+                          512m.
+                        type: string
+                    type: object
+                  pod:
+                    description: PodPolicy holds scheduling and pod metadata settings
+                      shared by every component.
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: Annotations are added to every pod of the component.
+                        type: object
+                      antiAffinity:
+                        default: Preferred
+                        description: AntiAffinity spreads the component's pods across
+                          nodes. Preferred by default.
+                        enum:
+                        - None
+                        - Preferred
+                        - Required
+                        type: string
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      priorityClassName:
+                        description: PriorityClassName of the component's pods.
+                        type: string
+                      tolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  replicas:
+                    default: 1
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: ResourceRequirements describes the compute resource
+                      requirements.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                  restartedAt:
+                    description: RestartedAt triggers a rolling restart whenever it
+                      changes, like `kubectl rollout restart`.
+                    type: string
+                type: object
+              clusterDomain:
+                default: cluster.local
+                description: ClusterDomain is the DNS domain of the Kubernetes cluster,
+                  used to build bookie IDs.
+                type: string
+              config:
+                additionalProperties:
+                  type: string
+                description: |-
+                  Config entries are written into the component's configuration file (broker.conf, bookkeeper.conf,
+                  zookeeper.conf or proxy.conf). Changing them triggers a rolling restart.
+                type: object
+              image:
+                description: Image overrides the cluster image for this component.
+                type: string
+              jvm:
+                description: JVMSpec configures the JVM of a component.
+                properties:
+                  directMemory:
+                    description: DirectMemory is -XX:MaxDirectMemorySize, for example
+                      1g.
+                    type: string
+                  extraOptions:
+                    description: ExtraOptions are appended to the JVM options as written.
+                    type: string
+                  heap:
+                    description: Heap is the -Xms/-Xmx size, for example 1g or 512m.
+                    type: string
+                type: object
+              ledgersRootPath:
+                default: /ledgers
+                description: LedgersRootPath is the ZooKeeper path of the BookKeeper
+                  metadata.
+                type: string
+              minReplicas:
+                default: 3
+                description: MinReplicas is the floor a scale-in may not go below;
+                  it should be at least the ledger ensemble size.
+                format: int32
+                minimum: 0
+                type: integer
+              monitoring:
+                description: Monitoring of a standalone BookKeeperCluster; one owned
+                  by a PulsarCluster is monitored by its Prometheus.
+                properties:
+                  enabled:
+                    description: Enabled deploys a Prometheus for this cluster that
+                      scrapes every component.
+                    type: boolean
+                  prometheus:
+                    description: PrometheusSpec configures the Prometheus the operator
+                      deploys.
+                    properties:
+                      image:
+                        type: string
+                      remoteWrite:
+                        description: |-
+                          RemoteWrite also sends every sample to long-term storage such as VictoriaMetrics, Thanos Receive or Mimir.
+                          Point monitoring.prometheusURL at that store to let the console query beyond the local retention.
+                        items:
+                          description: RemoteWriteSpec is one remote-write endpoint.
+                          properties:
+                            basicAuthSecret:
+                              description: BasicAuthSecret names a Secret in the cluster's
+                                namespace with username and password keys.
+                              type: string
+                            url:
+                              description: URL of the remote-write receiver, for example
+                                http://vminsert.monitoring:8480/insert/0/prometheus/api/v1/write.
+                              type: string
+                          required:
+                          - url
+                          type: object
+                        type: array
+                      resources:
+                        description: ResourceRequirements describes the compute resource
+                          requirements.
+                        properties:
+                          claims:
+                            description: |-
+                              Claims lists the names of resources, defined in spec.resourceClaims,
+                              that are used by this container.
+
+                              This field depends on the
+                              DynamicResourceAllocation feature gate.
+
+                              This field is immutable. It can only be set for containers.
+                            items:
+                              description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name must match the name of one entry in pod.spec.resourceClaims of
+                                    the Pod where this field is used. It makes that resource available
+                                    inside a container.
+                                  type: string
+                                request:
+                                  description: |-
+                                    Request is the name chosen for a request in the referenced claim.
+                                    If empty, everything from the claim is made available, otherwise
+                                    only the result of this request.
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Limits describes the maximum amount of compute resources allowed.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Requests describes the minimum amount of compute resources required.
+                              If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                              otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                        type: object
+                      retention:
+                        default: 15d
+                        description: Retention is how long samples are kept, for example
+                          15d.
+                        type: string
+                      retentionSize:
+                        description: |-
+                          RetentionSize caps the samples kept on disk, for example 16GB; the oldest blocks are deleted first. It
+                          defaults to 80% of the storage size, so a growing series count cannot fill the volume.
+                        type: string
+                      scrapeInterval:
+                        default: 15s
+                        description: ScrapeInterval, for example 15s.
+                        type: string
+                      storage:
+                        description: Storage is the volume holding the samples; 20Gi
+                          on the default StorageClass when unset.
+                        properties:
+                          size:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: |-
+                              Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
+                              decreasing it is refused.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          storageClassName:
+                            description: StorageClassName of the PVCs; the cluster
+                              default when empty. Cannot be changed after creation.
+                            type: string
+                        required:
+                        - size
+                        type: object
+                    type: object
+                  prometheusURL:
+                    description: |-
+                      PrometheusURL uses an existing Prometheus instead, for example http://prometheus.monitoring:9090. It must
+                      scrape the pods with the labels pulsar_cluster (the cluster name), component and pod; see
+                      config/monitoring. When set, no Prometheus is deployed.
+                    type: string
+                type: object
+              paused:
+                description: Paused stops reconciliation, for manual maintenance.
+                type: boolean
+              pod:
+                description: PodPolicy holds scheduling and pod metadata settings
+                  shared by every component.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Annotations are added to every pod of the component.
+                    type: object
+                  antiAffinity:
+                    default: Preferred
+                    description: AntiAffinity spreads the component's pods across
+                      nodes. Preferred by default.
+                    enum:
+                    - None
+                    - Preferred
+                    - Required
+                    type: string
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  priorityClassName:
+                    description: PriorityClassName of the component's pods.
+                    type: string
+                  tolerations:
+                    items:
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                          type: string
+                        operator:
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
+                            Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              replicas:
+                description: Replicas is the number of bookies. Lowering it decommissions
+                  bookies one at a time, from the highest ordinal.
+                format: int32
+                minimum: 0
+                type: integer
+              resources:
+                description: ResourceRequirements describes the compute resource requirements.
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This field depends on the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              restartedAt:
+                description: RestartedAt triggers a rolling restart whenever it changes,
+                  like `kubectl rollout restart`.
+                type: string
+              storage:
+                description: 'BookKeeperStorage is the disk layout of every bookie:
+                  one journal and one ledger PVC per bookie.'
+                properties:
+                  journal:
+                    description: VolumeSpec describes one persistent volume claim
+                      per pod.
+                    properties:
+                      size:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: |-
+                          Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
+                          decreasing it is refused.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      storageClassName:
+                        description: StorageClassName of the PVCs; the cluster default
+                          when empty. Cannot be changed after creation.
+                        type: string
+                    required:
+                    - size
+                    type: object
+                  ledger:
+                    description: VolumeSpec describes one persistent volume claim
+                      per pod.
+                    properties:
+                      size:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: |-
+                          Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
+                          decreasing it is refused.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      storageClassName:
+                        description: StorageClassName of the PVCs; the cluster default
+                          when empty. Cannot be changed after creation.
+                        type: string
+                    required:
+                    - size
+                    type: object
+                  reclaimPolicy:
+                    default: Retain
+                    description: |-
+                      ReclaimPolicy applies when the BookKeeperCluster is deleted. PVCs of a decommissioned bookie are always
+                      deleted, because its data has been re-replicated and its cookie removed.
+                    enum:
+                    - Retain
+                    - Delete
+                    type: string
+                required:
+                - journal
+                - ledger
+                type: object
+              zookeeper:
+                description: ZooKeeper is the metadata store of the bookies, as host:port[,host:port].
+                type: string
+            required:
+            - replicas
+            - storage
+            - zookeeper
+            type: object
+          status:
+            description: BookKeeperClusterStatus is the observed state of a BookKeeper
+              cluster.
+            properties:
+              autoRecovery:
+                description: ComponentStatus is the observed state of one workload.
+                properties:
+                  image:
+                    type: string
+                  readyReplicas:
+                    format: int32
+                    type: integer
+                  replicas:
+                    format: int32
+                    type: integer
+                  rolledOut:
+                    description: RolledOut is true when every replica runs the current
+                      template and is ready.
+                    type: boolean
+                  updatedReplicas:
+                    format: int32
+                    type: integer
+                required:
+                - readyReplicas
+                - replicas
+                - rolledOut
+                - updatedReplicas
+                type: object
+              bookieDetails:
+                items:
+                  description: BookieStatus is the observed state of one bookie.
+                  properties:
+                    bookieID:
+                      type: string
+                    journal:
+                      description: VolumeStatus is the observed state of one bookie
+                        PVC.
+                      properties:
+                        capacity:
+                          type: string
+                        name:
+                          type: string
+                        phase:
+                          type: string
+                        requested:
+                          type: string
+                        resizing:
+                          description: Resizing is true while the PVC has a pending
+                            or in-progress expansion.
+                          type: boolean
+                      required:
+                      - name
+                      type: object
+                    ledger:
+                      description: VolumeStatus is the observed state of one bookie
+                        PVC.
+                      properties:
+                        capacity:
+                          type: string
+                        name:
+                          type: string
+                        phase:
+                          type: string
+                        requested:
+                          type: string
+                        resizing:
+                          description: Resizing is true while the PVC has a pending
+                            or in-progress expansion.
+                          type: boolean
+                      required:
+                      - name
+                      type: object
+                    name:
+                      type: string
+                    ready:
+                      type: boolean
+                  required:
+                  - bookieID
+                  - journal
+                  - ledger
+                  - name
+                  - ready
+                  type: object
+                type: array
+              bookies:
+                description: ComponentStatus is the observed state of one workload.
+                properties:
+                  image:
+                    type: string
+                  readyReplicas:
+                    format: int32
+                    type: integer
+                  replicas:
+                    format: int32
+                    type: integer
+                  rolledOut:
+                    description: RolledOut is true when every replica runs the current
+                      template and is ready.
+                    type: boolean
+                  updatedReplicas:
+                    format: int32
+                    type: integer
+                required:
+                - readyReplicas
+                - replicas
+                - rolledOut
+                - updatedReplicas
+                type: object
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              decommission:
+                description: DecommissionStatus tracks the bookie being removed.
+                properties:
+                  bookieID:
+                    type: string
+                  job:
+                    type: string
+                  message:
+                    type: string
+                  ordinal:
+                    format: int32
+                    type: integer
+                  phase:
+                    description: DecommissionPhase is the step a bookie scale-in is
+                      at.
+                    type: string
+                  startedAt:
+                    format: date-time
+                    type: string
+                required:
+                - bookieID
+                - ordinal
+                - phase
+                - startedAt
+                type: object
+              expansionSupported:
+                description: ExpansionSupported reports whether the StorageClasses
+                  of the bookie PVCs allow online expansion.
+                type: boolean
+              monitoring:
+                description: MonitoringStatus reports where the cluster's metrics
+                  are.
+                properties:
+                  ready:
+                    description: Ready is true when the deployed Prometheus is running,
+                      or an external one is configured.
+                    type: boolean
+                  url:
+                    description: URL is the Prometheus the console queries.
+                    type: string
+                required:
+                - ready
+                type: object
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                description: Phase summarises the state of a cluster.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

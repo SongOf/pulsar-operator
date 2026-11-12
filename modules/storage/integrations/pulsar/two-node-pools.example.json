@@ -1,0 +1,46 @@
+{
+  "exampleOnly": true,
+  "description": "OFFLINE FICTIONAL INVENTORY ONLY. These Ready states, UIDs, node names, hostname labels, VG names and free capacities are fabricated. Replace with a fresh read of actual Ready DiskPools before generating any live deployment; this file is not evidence that 172.23.254.149/150 have disks or pools ready. ZK shares journal pools. Each journal pool needs >=30Gi available and each ledger pool >=64Gi because Preferred anti-affinity does not guarantee 2+1 placement. This is not HA and cannot run the three-node E2E.",
+  "items": [
+    {
+      "id": "journal-lab-a",
+      "uid": "EXAMPLE-ONLY-UID-journal-lab-a",
+      "node": "example-lab-node-a",
+      "vgName": "df_example_journal_a",
+      "topologyHostname": "example-host-a",
+      "state": "Ready",
+      "capacityBytes": 42949672960,
+      "availableBytes": 32212254720
+    },
+    {
+      "id": "journal-lab-b",
+      "uid": "EXAMPLE-ONLY-UID-journal-lab-b",
+      "node": "example-lab-node-b",
+      "vgName": "df_example_journal_b",
+      "topologyHostname": "example-host-b",
+      "state": "Ready",
+      "capacityBytes": 42949672960,
+      "availableBytes": 32212254720
+    },
+    {
+      "id": "ledger-lab-a",
+      "uid": "EXAMPLE-ONLY-UID-ledger-lab-a",
+      "node": "example-lab-node-a",
+      "vgName": "df_example_ledger_a",
+      "topologyHostname": "example-host-a",
+      "state": "Ready",
+      "capacityBytes": 85899345920,
+      "availableBytes": 68719476736
+    },
+    {
+      "id": "ledger-lab-b",
+      "uid": "EXAMPLE-ONLY-UID-ledger-lab-b",
+      "node": "example-lab-node-b",
+      "vgName": "df_example_ledger_b",
+      "topologyHostname": "example-host-b",
+      "state": "Ready",
+      "capacityBytes": 85899345920,
+      "availableBytes": 68719476736
+    }
+  ]
+}

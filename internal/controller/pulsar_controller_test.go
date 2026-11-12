@@ -15,7 +15,6 @@ import (
 
 	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
 )
-
 func newPC(t *testing.T, ns string) {
 	t.Helper()
 	pc := &v1.PulsarCluster{
@@ -34,7 +33,6 @@ func newPC(t *testing.T, ns string) {
 		t.Fatal(err)
 	}
 }
-
 // markBKReady stands in for the child BookKeeperCluster controller.
 func markBKReady(t *testing.T, ns string, initialized, ready bool) {
 	t.Helper()
@@ -54,7 +52,6 @@ func markBKReady(t *testing.T, ns string, initialized, ready bool) {
 		t.Fatal(err)
 	}
 }
-
 // runningPC brings a PulsarCluster up through every stage.
 func runningPC(t *testing.T, ns string) {
 	t.Helper()
@@ -70,7 +67,6 @@ func runningPC(t *testing.T, ns string) {
 	rollOutDeployment(t, ns, "pc-proxy")
 	reconcilePC(t, ns, "pc")
 }
-
 func TestPulsarStartsInOrder(t *testing.T) {
 	ns := namespace(t)
 	newPC(t, ns)
@@ -83,7 +79,6 @@ func TestPulsarStartsInOrder(t *testing.T) {
 	if !absent(t, ns, "pc", &v1.BookKeeperCluster{}) {
 		t.Fatal("bookies created before ZooKeeper is ready")
 	}
-
 	rollOut(t, ns, "pc-zookeeper")
 	reconcilePC(t, ns, "pc")
 	bk := get(t, ns, "pc", &v1.BookKeeperCluster{})
@@ -96,7 +91,6 @@ func TestPulsarStartsInOrder(t *testing.T) {
 	if !absent(t, ns, "pc-metadata-init", &batchv1.Job{}) {
 		t.Fatal("cluster metadata initialised before BookKeeper metadata")
 	}
-
 	markBKReady(t, ns, true, false)
 	reconcilePC(t, ns, "pc")
 	job := get(t, ns, "pc-metadata-init", &batchv1.Job{})
@@ -106,7 +100,6 @@ func TestPulsarStartsInOrder(t *testing.T) {
 	if !absent(t, ns, "pc-broker", &appsv1.StatefulSet{}) {
 		t.Fatal("brokers started before the cluster metadata exists")
 	}
-
 	completeJob(t, ns, "pc-metadata-init")
 	reconcilePC(t, ns, "pc")
 	broker := get(t, ns, "pc-broker", &appsv1.StatefulSet{})
@@ -121,7 +114,6 @@ func TestPulsarStartsInOrder(t *testing.T) {
 		t.Fatalf("serviceURL = %q", pc.Status.ServiceURL)
 	}
 }
-
 func TestPulsarRunning(t *testing.T) {
 	ns := namespace(t)
 	runningPC(t, ns)
@@ -130,7 +122,6 @@ func TestPulsarRunning(t *testing.T) {
 		t.Fatalf("phase = %s conditions = %+v", pc.Status.Phase, pc.Status.Conditions)
 	}
 }
-
 func TestBrokerScaleAndBookKeeperPropagation(t *testing.T) {
 	ns := namespace(t)
 	runningPC(t, ns)
@@ -150,7 +141,6 @@ func TestBrokerScaleAndBookKeeperPropagation(t *testing.T) {
 		t.Fatalf("child bookkeeper = %d %s", bk.Spec.Replicas, bk.Spec.Storage.Ledger.Size.String())
 	}
 }
-
 func TestUpgradeRollsComponentsInOrder(t *testing.T) {
 	ns := namespace(t)
 	runningPC(t, ns)
@@ -173,7 +163,6 @@ func TestUpgradeRollsComponentsInOrder(t *testing.T) {
 	if image("pc-broker") != "apachepulsar/pulsar:4.0.14" {
 		t.Fatal("brokers upgraded before ZooKeeper finished")
 	}
-
 	rollOut(t, ns, "pc-zookeeper")
 	reconcilePC(t, ns, "pc")
 	if img := get(t, ns, "pc", &v1.BookKeeperCluster{}).Spec.Image; img != "apachepulsar/pulsar:4.0.15" {
@@ -182,7 +171,6 @@ func TestUpgradeRollsComponentsInOrder(t *testing.T) {
 	if image("pc-broker") != "apachepulsar/pulsar:4.0.14" {
 		t.Fatal("brokers upgraded before the bookies finished")
 	}
-
 	markBKReady(t, ns, true, true)
 	reconcilePC(t, ns, "pc")
 	if image("pc-broker") != "apachepulsar/pulsar:4.0.15" {
@@ -197,7 +185,6 @@ func TestUpgradeRollsComponentsInOrder(t *testing.T) {
 		t.Fatal("proxy not upgraded last")
 	}
 }
-
 func TestZooKeeperReplicasAreImmutable(t *testing.T) {
 	ns := namespace(t)
 	runningPC(t, ns)
@@ -215,7 +202,6 @@ func TestZooKeeperReplicasAreImmutable(t *testing.T) {
 		t.Fatal("rejection not reported")
 	}
 }
-
 func TestBrokerConfigChangeRestartsBrokers(t *testing.T) {
 	ns := namespace(t)
 	runningPC(t, ns)
@@ -232,7 +218,6 @@ func TestBrokerConfigChangeRestartsBrokers(t *testing.T) {
 		t.Fatalf("annotations before %v after %v", before, after)
 	}
 }
-
 func TestProxyCanBeDisabled(t *testing.T) {
 	ns := namespace(t)
 	runningPC(t, ns)
@@ -246,7 +231,6 @@ func TestProxyCanBeDisabled(t *testing.T) {
 		t.Fatal("proxy not removed")
 	}
 }
-
 func setMonitoring(t *testing.T, ns string, m v1.MonitoringSpec) {
 	t.Helper()
 	pc := get(t, ns, "pc", &v1.PulsarCluster{})
@@ -263,7 +247,6 @@ func TestMonitoringLifecycle(t *testing.T) {
 	if !absent(t, ns, "pc-prometheus", &appsv1.StatefulSet{}) {
 		t.Fatal("prometheus deployed without monitoring enabled")
 	}
-
 	setMonitoring(t, ns, v1.MonitoringSpec{Enabled: true})
 	sts := get(t, ns, "pc-prometheus", &appsv1.StatefulSet{})
 	if len(sts.Spec.VolumeClaimTemplates) != 1 || sts.Spec.Template.Spec.ServiceAccountName != "pc-prometheus" {
@@ -285,7 +268,6 @@ func TestMonitoringLifecycle(t *testing.T) {
 	if !get(t, ns, "pc", &v1.PulsarCluster{}).Status.Monitoring.Ready {
 		t.Fatal("monitoring not ready after rollout")
 	}
-
 	// An external Prometheus replaces the deployed one.
 	setMonitoring(t, ns, v1.MonitoringSpec{Enabled: true, PrometheusURL: "http://prom.monitoring:9090"})
 	if !absent(t, ns, "pc-prometheus", &appsv1.StatefulSet{}) || !absent(t, ns, "pc-prometheus", &rbacv1.Role{}) {

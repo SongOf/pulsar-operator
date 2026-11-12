@@ -1,0 +1,564 @@
+{
+  "date": "2026-11-13",
+  "timezone": "Asia/Shanghai",
+  "updatedAt": "2026-11-12T20:57:10.525517+00:00",
+  "source": {
+    "repository": "https://github.com/SongOf/pulsar-operator",
+    "upstreamSnapshot": "3c042c5",
+    "workingTree": "/root/workspace/pulsar-operator",
+    "fullGitBase": "3c042c57a79e83cd3f329c7088a65e2bc65a62af",
+    "gitHistoryRecovered": true,
+    "deliveryBranch": "integration/storage-console"
+  },
+  "evidenceDirectory": "/root/workspace/pulsar-deployment-evidence",
+  "python": {
+    "storageTests": 150,
+    "repositoryTests": 48,
+    "failures": 0,
+    "installerFakeKubectlTests": 19,
+    "sharedE2EPreflightTests": 11,
+    "newScriptRegressionTests": 6
+  },
+  "go": {
+    "vet": "passed",
+    "tests": "passed",
+    "controllerEnvtestExecuted": true,
+    "envtestVersionSelector": "1.36.x",
+    "execution": "Actual BuildKit/containerd Go build stage",
+    "evidence": "/root/workspace/pulsar-review-fixes-20261113/controller-proof/verification.json",
+    "topLevelTests": 73,
+    "controllerTests": 36,
+    "newControllerRegressions": 18,
+    "consoleTests": 19,
+    "resourceTests": 14,
+    "metricsTests": 4,
+    "actualEnvtestVersion": "1.36.2"
+  },
+  "webModels": {
+    "runtime": "Actual Node.js 22 in BuildKit build stage",
+    "testCount": 34,
+    "passed": 34,
+    "failed": 0
+  },
+  "webBuild": {
+    "npmCi": "passed",
+    "vite": "passed",
+    "deployedAssetsHTTP": "passed",
+    "browserDOMTested": false
+  },
+  "storageUI": {
+    "runtime": "Actual Node.js",
+    "harness": "modules/storage/scripts/check-ui.cjs",
+    "passed": 41,
+    "browserDOMTested": false
+  },
+  "kustomize": {
+    "client": "kubectl v1.37.2",
+    "allResources": 23,
+    "twoNodeResources": 23,
+    "rendered": true,
+    "optionalNodePortSeparate": true
+  },
+  "pulsarCRDSchema": {
+    "offlineJSONSchema": "passed",
+    "kubernetesAdmission": true,
+    "serverDryRun": "passed",
+    "liveApply": "passed"
+  },
+  "images": [
+    {
+      "name": "localhost/pulsar-operator:review-20261113-v3",
+      "digest": "sha256:40f372d83fb646ad8d42fbda20992ed6d2d425fc78979e8aa588d017d961e6ce",
+      "importedNodes": [
+        "172.23.254.149",
+        "172.23.254.150"
+      ],
+      "built": true
+    },
+    {
+      "name": "localhost/pulsar-operator-storage:review-20261113-v3",
+      "digest": "sha256:cd05f106feae53b23334a8f24690cbbf495d4b768a4eb51ae36187278448aa40",
+      "importedNodes": [
+        "172.23.254.149",
+        "172.23.254.150"
+      ],
+      "built": true
+    }
+  ],
+  "twoNodeDeployment": {
+    "profile": "two-node-shared-disk-lab",
+    "targetInternalIPs": [
+      "172.23.254.149",
+      "172.23.254.150"
+    ],
+    "kubernetesVersion": "v1.37.2",
+    "containerdVersion": "2.2.1",
+    "flannelVersion": "v0.28.10",
+    "csiChartVersion": "1.10.1",
+    "csiDriverVersion": "1.10.1",
+    "csiDriver": "local.csi.openebs.io",
+    "pulsarImage": "apachepulsar/pulsar:4.0.14",
+    "namespace": "diskfleet-pulsar-data-lab",
+    "cluster": "pulsar-lab",
+    "applied": true,
+    "imagesBuilt": true,
+    "csiInstalled": true,
+    "physicalDiskWrites": true,
+    "approval": "User explicitly approved use of these two identified data disks",
+    "systemDisksInLVM": false,
+    "nodeReadyCount": 2,
+    "replicas": {
+      "zookeeper": 3,
+      "bookie": 3,
+      "broker": 3,
+      "proxy": 1,
+      "autoRecovery": 1
+    },
+    "steadyBusinessRequests": {
+      "memoryGiB": 20.5,
+      "cpu": 3.3,
+      "excludes": [
+        "Kubernetes",
+        "management components",
+        "CSI",
+        "initialization jobs"
+      ]
+    },
+    "runtime": {
+      "verifiedAt": "2026-11-12T20:53:52.260415+00:00",
+      "nodesReady": 2,
+      "managedDataDisks": 2,
+      "protectedSystemDisks": 2,
+      "poolsReady": 2,
+      "pulsarPhase": "Running",
+      "bookkeeperPhase": "Running",
+      "readyBusinessPods": 11,
+      "boundBusinessPVCs": 9,
+      "ledgerSizeGiB": 21,
+      "retainedProbePV": "pvc-0d567184-691a-4d14-9408-9237367358b7",
+      "retainedProbeGiB": 1,
+      "pools": [
+        {
+          "name": "lab-data-149",
+          "node": "k8s-control-1",
+          "uid": "bc4b2c8d-550b-401f-9a0c-c52ae46b7ebe",
+          "vg": "df_lab_data_149",
+          "status": {
+            "availableBytes": 46166704128,
+            "capacityBytes": 107369988096,
+            "message": "Volume group ready; OpenEBS CSI provisions PVCs.",
+            "observedGeneration": 2,
+            "phase": "Ready",
+            "storageClass": "diskfleet-lab-data-149",
+            "topologyHostname": "k8s-control-1"
+          }
+        },
+        {
+          "name": "lab-data-150",
+          "node": "iz6weeh0nfgmlsr99i8atmz",
+          "uid": "4d44a0a7-ffaa-4f39-8edd-3ff28530d214",
+          "vg": "df_lab_data_150",
+          "status": {
+            "availableBytes": 67641540608,
+            "capacityBytes": 107369988096,
+            "message": "Volume group ready; OpenEBS CSI provisions PVCs.",
+            "observedGeneration": 2,
+            "phase": "Ready",
+            "storageClass": "diskfleet-lab-data-150",
+            "topologyHostname": "iz6weeh0nfgmlsr99i8atmz"
+          }
+        }
+      ],
+      "agentImage": "localhost/pulsar-operator-storage:review-20261113-v3",
+      "approvedWritesPreserved": true,
+      "e2eEvidence": "diskfleet-pulsar-e2e.WnikXAer",
+      "assertionsPassed": true,
+      "managedDisks": 2,
+      "businessPVCsBound": 9,
+      "ledgerGiB": 21,
+      "businessPVCAndPVUIDsUnchanged": true,
+      "runningBusinessPodUIDsUnchanged": true,
+      "legacyJournalsOnlyAddedPoolUID": true,
+      "existingRetainPVPreserved": true,
+      "bindingVerifiedBusinessPVCs": 9,
+      "brokerReplicas": 3,
+      "businessSpecUnchanged": true,
+      "preexistingPrometheusPVCs": [
+        {
+          "name": "data-pulsar-lab-prometheus-0",
+          "phase": "Pending",
+          "unchanged": true
+        }
+      ],
+      "fakeTokenAbsentFromGatewayLogs": true,
+      "passed": true,
+      "consoleHTTPRequests": 31
+    }
+  },
+  "diskDiscovery": {
+    "udevHostMount": "/run/udev (read-only)",
+    "lvmMetadataAliasesExcluded": true,
+    "regressionTestsAdded": 3,
+    "sourceSHA256": "e86ac12634f10ea62e3550213c25c48a5253a02ed2420d466d706b1b18ae3098",
+    "managedDataDisks": 2,
+    "protectedSystemDisks": 2,
+    "obsoleteInventoryCRsRemoved": 6,
+    "deletePreconditions": [
+      "uid",
+      "resourceVersion"
+    ],
+    "ownershipJournalsPreserved": true,
+    "evidence": [
+      "physical-pool-validation.json",
+      "stale-inventory-cleanup.json",
+      "final-ownership-journals.json"
+    ]
+  },
+  "pulsarStorageE2E": {
+    "profile": "two-node-shared-disk-lab",
+    "passed": true,
+    "originalThreeNodeE2ERun": false,
+    "evidence": "diskfleet-pulsar-e2e.WnikXAer",
+    "log": "shared-e2e.log",
+    "boundBusinessPVCs": 9,
+    "businessPVCAndPVIdentitiesPreserved": true,
+    "retainedMessagesProducedAndConsumedAfterBookieRecreation": 20,
+    "bookieUserUID": 10000,
+    "journalAndLedgerMarkersSurvived": true,
+    "ledgerExpandedCount": 3,
+    "ledgerBeforeGiB": 20,
+    "ledgerAfterGiB": 21,
+    "bookie0FilesystemBeforeKiB": 20466256,
+    "bookie0FilesystemAfterKiB": 21498384,
+    "independentRetainPV": {
+      "name": "pvc-0d567184-691a-4d14-9408-9237367358b7",
+      "phase": "Released",
+      "sizeGiB": 1,
+      "automaticDeletion": false
+    },
+    "dataLeftRunning": true,
+    "executedBeforeReviewFixes": true
+  },
+  "consoleHTTP": {
+    "passed": true,
+    "requests": 31,
+    "endpoints": [
+      "http://172.23.254.149:30080",
+      "http://172.23.254.150:30080"
+    ],
+    "browserDOMTested": false,
+    "independentTokensVerified": true,
+    "writePreconditionsVerified": true,
+    "fakeTokenAbsentFromGatewayLogs": true,
+    "tokensPrinted": false,
+    "evidence": "/root/workspace/pulsar-review-fixes-20261113/runtime-verification.json"
+  },
+  "unverified": [
+    "Browser DOM/layout/keyboard/click interactions",
+    "Real Bookie decommission",
+    "Host/disk failure and recovery",
+    "Host reboot persistence",
+    "Multi-cluster failover",
+    "Production scale/performance"
+  ],
+  "limits": [
+    "Two nodes share journal/ledger physical disks; no I/O isolation or host-failure HA claim",
+    "Local PV does not itself replicate data",
+    "Storage API is single replica with snapshot cache and default emptyDir SQLite audit",
+    "Physical ownership journals use hostPath and are separate from API audit",
+    "Released 1Gi test PV/LV and test messages/markers intentionally retained",
+    "Earlier system-directory smoke resources retained; its Pulsar manifest was never deployed",
+    "No claim of running the default three-node E2E or proving 10000-node scale",
+    "Before this upgrade monitoring was enabled without a usable StorageClass; its existing Prometheus PVC remains Pending and is not counted as a healthy component"
+  ],
+  "reviewFixEvidenceDirectory": "/root/workspace/pulsar-review-fixes-20261113",
+  "initialDeploymentImages": [
+    {
+      "name": "localhost/pulsar-operator:system-lab-20261113-v1",
+      "digest": "sha256:cc3177d5e4b1a626e03ffe8d98693d5ae569b54a4dd75b871b30e6c8a42cb078",
+      "built": true,
+      "importedNodes": [
+        "172.23.254.149",
+        "172.23.254.150"
+      ]
+    },
+    {
+      "name": "localhost/pulsar-operator-storage:data-lab-20261113-v2",
+      "digest": "sha256:7c14d93d5705dac7579e32dc5759627551bf7fc5a9a21d1041d9ff8c1289a8fd",
+      "built": true,
+      "importedNodes": [
+        "172.23.254.149",
+        "172.23.254.150"
+      ]
+    }
+  ],
+  "initialConsoleHTTP": {
+    "passed": true,
+    "endpoints": [
+      "http://172.23.254.149:30080",
+      "http://172.23.254.150:30080"
+    ],
+    "primaryRequests": 34,
+    "checksPassed": 148,
+    "additionalRequestsFromWorker": 4,
+    "independentTokensVerified": true,
+    "unauthenticatedAndWrongModuleToken401": true,
+    "strictPulsarBookKeeperUIDRelationship": true,
+    "externalBusinessPVCsReadOnly": true,
+    "inventoryAliasFixPending": false,
+    "tokensPrinted": false,
+    "browserDOMTested": false,
+    "evidence": "console-http-validation.json"
+  },
+  "reviewFixes": {
+    "findingCount": 19,
+    "severityCounts": {
+      "P1": 4,
+      "P2": 12,
+      "P3": 3
+    },
+    "allImplemented": true,
+    "additionalBoundaryCoverage": [
+      "unhealthy/minReplicas + simultaneous volume expansion and scale-in",
+      "spec/storage-class changes during orphan recreation",
+      "foreign replacement PVC expansion",
+      "same-name PVC release retry after history recovery"
+    ],
+    "runtime": {
+      "verifiedAt": "2026-11-12T20:53:52.260415+00:00",
+      "nodesReady": 2,
+      "poolsReady": 2,
+      "managedDisks": 2,
+      "protectedSystemDisks": 2,
+      "businessPVCsBound": 9,
+      "ledgerGiB": 21,
+      "businessPVCAndPVUIDsUnchanged": true,
+      "runningBusinessPodUIDsUnchanged": true,
+      "pulsarPhase": "Running",
+      "bookkeeperPhase": "Running",
+      "legacyJournalsOnlyAddedPoolUID": true,
+      "approvedWritesPreserved": true,
+      "existingRetainPVPreserved": true,
+      "bindingVerifiedBusinessPVCs": 9,
+      "readyBusinessPods": 11,
+      "brokerReplicas": 3,
+      "businessSpecUnchanged": true,
+      "preexistingPrometheusPVCs": [
+        {
+          "name": "data-pulsar-lab-prometheus-0",
+          "phase": "Pending",
+          "unchanged": true
+        }
+      ],
+      "consoleHTTP": [
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/storage/",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/healthz",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/storage/api/config",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/assets/index-nW8RruD3.js",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/assets/index-CAcbJszQ.css",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/api/clusters",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/storage/api/overview",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/api/clusters",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/storage/api/overview",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/api/clusters",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/storage/api/volumes",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "PATCH",
+          "path": "/api/pulsarclusters/diskfleet-pulsar-data-lab/pulsar-lab",
+          "status": 428
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "PATCH",
+          "path": "/api/pulsarclusters/diskfleet-pulsar-data-lab/pulsar-lab",
+          "status": 409
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/storage/",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/healthz",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/storage/api/config",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/assets/index-nW8RruD3.js",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/assets/index-CAcbJszQ.css",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/api/clusters",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/storage/api/overview",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/api/clusters",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/storage/api/overview",
+          "status": 401
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/api/clusters",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "GET",
+          "path": "/storage/api/volumes",
+          "status": 200
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "PATCH",
+          "path": "/api/pulsarclusters/diskfleet-pulsar-data-lab/pulsar-lab",
+          "status": 428
+        },
+        {
+          "host": "172.23.254.150",
+          "method": "PATCH",
+          "path": "/api/pulsarclusters/diskfleet-pulsar-data-lab/pulsar-lab",
+          "status": 409
+        },
+        {
+          "host": "172.23.254.149",
+          "method": "GET",
+          "path": "/",
+          "status": 303
+        }
+      ],
+      "fakeTokenAbsentFromGatewayLogs": true,
+      "passed": true
+    },
+    "messages": {
+      "topic": "persistent://public/default/reviewfix-v3-78cf813b1cd8",
+      "subscription": "reviewfix",
+      "producedBeforeOperatorUpgrade": 20,
+      "consumedAfterOperatorUpgrade": 20,
+      "businessVolumesChanged": false,
+      "passed": true
+    },
+    "apiStatePreservation": {
+      "restored": {
+        "objects": 1,
+        "plans": 0,
+        "events": 2
+      },
+      "overwroteNewerRecords": false,
+      "integrityCheck": "ok"
+    },
+    "businessResourcesDeleted": false,
+    "systemDisksInLVM": false
+  }
+}

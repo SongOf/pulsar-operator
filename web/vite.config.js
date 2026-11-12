@@ -4,5 +4,8 @@ import react from '@vitejs/plugin-react'
 // `npm run dev` proxies the API to an operator running locally (`make run`).
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { '/api': 'http://127.0.0.1:8080' } },
+  server: { proxy: {
+    '/api': 'http://127.0.0.1:8080',
+    '/storage': { target: 'http://127.0.0.1:8082', rewrite: path => path.replace(/^\/storage(?=\/|$)/, '') || '/' },
+  } },
 })

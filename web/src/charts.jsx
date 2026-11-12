@@ -10,7 +10,6 @@ export const units = {
   count: v => compact(v),
   cores: v => `${round(v, 2)} cores`,
 }
-
 function round(v, digits = 1) {
   if (!isFinite(v)) return '—'
   return Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : (+v.toFixed(digits)).toString()
@@ -24,7 +23,6 @@ export function compact(v) {
   if (a >= 1e3) return `${round(v / 1e3)}k`
   return round(v)
 }
-
 export function bytes(v) {
   if (!isFinite(v)) return '—'
   const steps = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
@@ -38,7 +36,6 @@ export function slotOf(name, index) {
   const m = /-(\d+)$/.exec(name)
   return ((m ? +m[1] : index) % 8) + 1
 }
-
 function niceMax(v) {
   if (!(v > 0)) return 1
   const p = Math.pow(10, Math.floor(Math.log10(v)))
@@ -51,7 +48,6 @@ function timeLabel(t, spanSeconds) {
   const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   return spanSeconds > 86400 ? `${d.getMonth() + 1}/${d.getDate()} ${hm}` : hm
 }
-
 function useWidth() {
   const ref = useRef(null)
   const [w, setW] = useState(600)
@@ -63,7 +59,6 @@ function useWidth() {
   }, [])
   return [ref, w]
 }
-
 // LineChart draws one measure on one axis: one line per series, crosshair and tooltip on hover, a legend for two
 // or more series, end labels for up to four, and a table view.
 export function LineChart({ title, series, unit, step = 15, yMax, empty = 'No data in this range' }) {
@@ -73,20 +68,17 @@ export function LineChart({ title, series, unit, step = 15, yMax, empty = 'No da
   const fmt = units[unit] || units.count
   const height = 200, pad = { l: 56, r: series.length > 1 && series.length <= 4 ? 84 : 12, t: 10, b: 24 }
   const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b
-
   const { times, x0, x1, max } = useMemo(() => {
     const ts = new Set()
     let lo = Infinity, hi = -Infinity, top = 0
     for (const s of series) for (const [t, v] of s.points) { ts.add(t); lo = Math.min(lo, t); hi = Math.max(hi, t); top = Math.max(top, v) }
     return { times: [...ts].sort((a, b) => a - b), x0: lo, x1: hi, max: yMax ?? niceMax(top) }
   }, [series, yMax])
-
   const hasData = times.length > 0
   const sx = t => pad.l + (x1 === x0 ? iw / 2 : ((t - x0) / (x1 - x0)) * iw)
   const sy = v => pad.t + ih - (v / max) * ih
   // A gap longer than three steps breaks the line instead of drawing across missing scrapes.
   const path = pts => pts.map(([t, v], i) => `${i === 0 || t - pts[i - 1][0] > step * 3 ? 'M' : 'L'}${sx(t).toFixed(1)},${sy(v).toFixed(1)}`).join('')
-
   const onMove = e => {
     if (!hasData) return
     const box = e.currentTarget.getBoundingClientRect()
@@ -96,14 +88,12 @@ export function LineChart({ title, series, unit, step = 15, yMax, empty = 'No da
     setHover(best)
   }
   const valueAt = (s, t) => s.points.find(p => p[0] === t)?.[1]
-
   // End labels, pushed apart vertically so they never overlap.
   const ends = series.length > 1 && series.length <= 4 ? series.map(s => {
     const last = s.points[s.points.length - 1]
     return last ? { name: s.name, slot: s.slot, y: sy(last[1]) } : null
   }).filter(Boolean).sort((a, b) => a.y - b.y) : []
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13
-
   return (
     <figure className="chart" ref={ref}>
       <figcaption>
@@ -159,7 +149,6 @@ export function LineChart({ title, series, unit, step = 15, yMax, empty = 'No da
     </figure>
   )
 }
-
 // StatTile is a headline number with its unit.
 export function StatTile({ label, value, unit, tone, hint }) {
   const fmt = units[unit] || units.count

@@ -17,14 +17,12 @@ import (
 // Pulsar builds the ZooKeeper, broker, proxy and metadata objects of a PulsarCluster. Its bookies come from a
 // child BookKeeperCluster, built by ChildBookKeeper.
 type Pulsar struct{ C *v1.PulsarCluster }
-
 func (p Pulsar) name(component string) string { return Name(p.C.Name, component) }
 func (p Pulsar) ns() string                    { return p.C.Namespace }
 func (p Pulsar) domain() string                { return domainOr(p.C.Spec.ClusterDomain) }
 
 // ZooKeeperName is the ZooKeeper StatefulSet and headless Service.
 func (p Pulsar) ZooKeeperName() string { return p.name(ZooKeeper) }
-
 // ZooKeeperReplicas defaults to three.
 func (p Pulsar) ZooKeeperReplicas() int32 {
 	if p.C.Spec.ZooKeeper.Replicas == 0 {
@@ -32,7 +30,6 @@ func (p Pulsar) ZooKeeperReplicas() int32 {
 	}
 	return p.C.Spec.ZooKeeper.Replicas
 }
-
 // ZooKeeperConnect lists every ZooKeeper server, as host:port,host:port.
 func (p Pulsar) ZooKeeperConnect() string {
 	hosts := make([]string, 0, p.ZooKeeperReplicas())
@@ -42,7 +39,6 @@ func (p Pulsar) ZooKeeperConnect() string {
 	}
 	return strings.Join(hosts, ",")
 }
-
 // MetadataStoreURL is the Pulsar metadata store URL.
 func (p Pulsar) MetadataStoreURL() string { return "zk:" + p.ZooKeeperConnect() }
 
@@ -51,7 +47,6 @@ func (p Pulsar) BrokerName() string        { return p.name(Broker) }
 func (p Pulsar) BrokerHeadlessName() string { return p.name(Broker) + "-headless" }
 func (p Pulsar) BrokerServiceName() string { return p.name(Broker) }
 func (p Pulsar) ProxyName() string         { return p.name(Proxy) }
-
 // ServiceURL and WebServiceURL are the in-cluster client addresses of the brokers.
 func (p Pulsar) ServiceURL() string {
 	return fmt.Sprintf("pulsar://%s.%s.svc.%s:6650", p.BrokerServiceName(), p.ns(), p.domain())
@@ -59,7 +54,6 @@ func (p Pulsar) ServiceURL() string {
 func (p Pulsar) WebServiceURL() string {
 	return fmt.Sprintf("http://%s.%s.svc.%s:8080", p.BrokerServiceName(), p.ns(), p.domain())
 }
-
 // ChildBookKeeper is the BookKeeperCluster that holds this cluster's bookies.
 func (p Pulsar) ChildBookKeeper() *v1.BookKeeperCluster {
 	spec := p.C.Spec.BookKeeper
@@ -74,13 +68,11 @@ func (p Pulsar) ChildBookKeeper() *v1.BookKeeperCluster {
 		},
 	}
 }
-
 // ---- ZooKeeper ----
 
 func (p Pulsar) zkPorts() []corev1.ServicePort {
 	return []corev1.ServicePort{Port("client", 2181), Port("follower", 2888), Port("election", 3888)}
 }
-
 // ZooKeeperConfigMap is the ZooKeeper configuration.
 func (p Pulsar) ZooKeeperConfigMap() *corev1.ConfigMap {
 	z := p.C.Spec.ZooKeeper
@@ -99,12 +91,10 @@ func (p Pulsar) ZooKeeperConfigMap() *corev1.ConfigMap {
 	}
 	return ConfigMap(p.ZooKeeperName()+"-config", p.ns(), Labels(p.C.Name, ZooKeeper), ConfigData(defaults, z.Config, []string{"dataDir"}, env))
 }
-
 // ZooKeeperService is the headless Service of the ensemble.
 func (p Pulsar) ZooKeeperService() *corev1.Service {
 	return HeadlessService(p.ZooKeeperName(), p.ns(), Labels(p.C.Name, ZooKeeper), p.zkPorts())
 }
-
 // ZooKeeperStatefulSet runs the ensemble; generate-zookeeper-config.sh derives each server's id from its hostname.
 func (p Pulsar) ZooKeeperStatefulSet(configHash string) *appsv1.StatefulSet {
 	z := p.C.Spec.ZooKeeper
@@ -147,12 +137,10 @@ func (p Pulsar) ZooKeeperStatefulSet(configHash string) *appsv1.StatefulSet {
 		},
 	}
 }
-
 // ---- metadata ----
 
 // MetadataJobName initialises the cluster metadata.
 func (p Pulsar) MetadataJobName() string { return p.name("metadata-init") }
-
 // MetadataJob registers the cluster in the metadata store. It formats BookKeeper metadata only when absent, so it
 // is safe after the BookKeeper init job.
 func (p Pulsar) MetadataJob() *batchv1.Job {
@@ -174,13 +162,11 @@ func (p Pulsar) MetadataJob() *batchv1.Job {
 		},
 	}
 }
-
 // ---- broker ----
 
 func (p Pulsar) brokerPorts() []corev1.ServicePort {
 	return []corev1.ServicePort{Port("pulsar", 6650), Port("http", 8080)}
 }
-
 // BrokerConfigMap is the broker configuration.
 func (p Pulsar) BrokerConfigMap() *corev1.ConfigMap {
 	b := p.C.Spec.Broker
@@ -199,12 +185,10 @@ func (p Pulsar) BrokerConfigMap() *corev1.ConfigMap {
 	env := map[string]string{"PULSAR_MEM": JVMOptions(b.JVM, "1g", "1g")}
 	return ConfigMap(p.BrokerName()+"-config", p.ns(), Labels(p.C.Name, Broker), ConfigData(defaults, b.Config, owned, env))
 }
-
 // BrokerHeadlessService gives brokers the FQDNs they advertise.
 func (p Pulsar) BrokerHeadlessService() *corev1.Service {
 	return HeadlessService(p.BrokerHeadlessName(), p.ns(), Labels(p.C.Name, Broker), p.brokerPorts())
 }
-
 // BrokerService is the address clients and the proxy connect to.
 func (p Pulsar) BrokerService() *corev1.Service {
 	labels := Labels(p.C.Name, Broker)
@@ -213,7 +197,6 @@ func (p Pulsar) BrokerService() *corev1.Service {
 		Spec:       corev1.ServiceSpec{Selector: labels, Ports: p.brokerPorts()},
 	}
 }
-
 // BrokerStatefulSet runs the brokers; each advertises its own FQDN so topic lookups redirect to it.
 func (p Pulsar) BrokerStatefulSet(configHash string) *appsv1.StatefulSet {
 	b := p.C.Spec.Broker
@@ -248,9 +231,7 @@ func (p Pulsar) BrokerStatefulSet(configHash string) *appsv1.StatefulSet {
 		},
 	}
 }
-
 // ---- proxy ----
-
 // ProxyConfigMap is the proxy configuration; the proxy forwards to the broker Service.
 func (p Pulsar) ProxyConfigMap() *corev1.ConfigMap {
 	x := p.C.Spec.Proxy
@@ -265,7 +246,6 @@ func (p Pulsar) ProxyConfigMap() *corev1.ConfigMap {
 	env := map[string]string{"PULSAR_MEM": JVMOptions(x.JVM, "512m", "512m")}
 	return ConfigMap(p.ProxyName()+"-config", p.ns(), Labels(p.C.Name, Proxy), ConfigData(defaults, x.Config, owned, env))
 }
-
 // ProxyService exposes the proxy with the configured Service type.
 func (p Pulsar) ProxyService() *corev1.Service {
 	labels := Labels(p.C.Name, Proxy)
@@ -278,7 +258,6 @@ func (p Pulsar) ProxyService() *corev1.Service {
 		Spec:       corev1.ServiceSpec{Type: t, Selector: labels, Ports: p.brokerPorts()},
 	}
 }
-
 // ProxyDeployment runs the stateless proxies.
 func (p Pulsar) ProxyDeployment(configHash string) *appsv1.Deployment {
 	x := p.C.Spec.Proxy
@@ -307,7 +286,6 @@ func (p Pulsar) ProxyDeployment(configHash string) *appsv1.Deployment {
 		},
 	}
 }
-
 // PDBs returns the disruption budgets of ZooKeeper and the brokers.
 func (p Pulsar) PDBs() []*policyv1.PodDisruptionBudget {
 	return []*policyv1.PodDisruptionBudget{

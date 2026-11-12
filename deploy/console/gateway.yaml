@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-gateway
+  labels:
+    app.kubernetes.io/name: console-gateway
+    app.kubernetes.io/part-of: pulsar-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console-gateway
+        app.kubernetes.io/part-of: pulsar-operator
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginx:stable-alpine
+          imagePullPolicy: IfNotPresent
+          # Bypass image entrypoint scripts that write to /etc/nginx.
+          command: [nginx]
+          args: [-g, "daemon off;", -c, /etc/nginx/nginx.conf]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: "1"
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: runtime
+              mountPath: /tmp/nginx
+      volumes:
+        - name: config
+          configMap:
+            name: console-gateway-config
+        - name: runtime
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-gateway
+  labels:
+    app.kubernetes.io/name: console-gateway
+    app.kubernetes.io/part-of: pulsar-operator
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: console-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

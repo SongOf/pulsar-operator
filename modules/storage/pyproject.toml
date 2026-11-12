@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diskfleet"
+version = "0.1.0"
+description = "Physical disk fleet operator and local PV management console"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+diskfleet = "diskfleet.api:main"
+
+[tool.setuptools.packages.find]
+include = ["diskfleet*"]
+
+[tool.setuptools.package-data]
+diskfleet = ["static/*"]

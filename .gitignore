@@ -2,3 +2,12 @@ bin/
 node_modules/
 dist/
 .DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+.state/
+artifacts/
+*.token
+*.tar.gz
+.env
+e2e-evidence-*/

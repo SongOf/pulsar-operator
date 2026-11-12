@@ -4,7 +4,6 @@ import { LineChart, StatTile, bytes, slotOf, units } from './charts.jsx'
 import { ActionStatus, Section, useAction } from './ui.jsx'
 
 const ranges = ['15m', '1h', '6h', '24h', '7d']
-
 // perEntity turns {entity: points} into chart series with stable colors.
 function perEntity(entities = {}, label = n => n) {
   return Object.keys(entities || {}).filter(n => entities[n]?.length).sort().map((name, i) => ({ name: label(name), slot: slotOf(name, i), points: entities[name] }))
@@ -16,7 +15,6 @@ function cluster(d, metric, name, slot) {
 }
 
 const short = pod => pod.replace(/^.*-(bookie|zookeeper)-/, '$1-')
-
 export function Monitoring({ view, patch, onChanged }) {
   const spec = view.obj.spec.monitoring || {}
   const enabled = spec.enabled || !!spec.prometheusURL
@@ -25,9 +23,10 @@ export function Monitoring({ view, patch, onChanged }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [state, run] = useAction(onChanged)
-
+  const brokerScope = view.kind === 'PulsarCluster' && view.scope !== 'bookie'
+  const bookieScope = view.scope !== 'broker'
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || view.readOnly) return
     let live = true
     const load = () => api.metrics(view.kind, view.ns, view.name, range)
       .then(d => { if (live) { setData(d); setError(null) } })
@@ -35,24 +34,22 @@ export function Monitoring({ view, patch, onChanged }) {
     load()
     const t = setInterval(load, 15000)
     return () => { live = false; clearInterval(t) }
-  }, [enabled, view.kind, view.ns, view.name, range])
-
-  if (view.managed) return null
+  }, [enabled, view.readOnly, view.kind, view.ns, view.name, range])
+  if (view.readOnly) return <Section title="监控"><p className="muted">资源关联异常，暂不查询关联集群的监控。</p></Section>
   if (!enabled) {
     return (
       <Section title="Monitoring">
         <p className="muted small">Monitoring deploys a Prometheus for this cluster that scrapes every component. Its samples live on a
           persistent volume (20Gi, kept 15 days and capped at 80% of the disk), so they survive restarts. You can instead point it at
           an existing Prometheus in <code>spec.monitoring.prometheusURL</code>.</p>
-        <button className="primary" disabled={state.busy} onClick={() => run('Monitoring enabled', () => patch({ monitoring: { enabled: true } }))}>Enable monitoring</button>
+        {view.managed ? <p className="muted">请在关联 Pulsar 的监控页面启用采集，随后在此查看 Bookie 指标。</p> : <button className="primary" disabled={state.busy} onClick={() => run('Monitoring enabled', () => patch({ monitoring: { enabled: true } }))}>Enable monitoring</button>}
         <ActionStatus state={state} />
       </Section>
     )
   }
-
   const c = data?.current || {}
   const step = data?.stepSeconds || 15
-  const pods = data?.pods || []
+  const pods = (data?.pods || []).filter(p => !view.scope || view.components.some(c => c.key === p.component))
   const down = pods.filter(p => !p.up)
   return (
     <Section title="Monitoring" actions={
@@ -64,8 +61,7 @@ export function Monitoring({ view, patch, onChanged }) {
       {error && <div className="banner warn small">{error}</div>}
       {data?.errors?.length > 0 && <div className="banner warn small">Some panels failed: {data.errors.join('; ')}</div>}
       {down.length > 0 && <div className="banner warn small">Not scraped: {down.map(p => p.pod).join(', ')}</div>}
-
-      {view.kind === 'PulsarCluster' && (
+      {brokerScope && (
         <div className="tiles">
           <StatTile label="Messages in" value={c.rateIn} unit="rate" />
           <StatTile label="Messages out" value={c.rateOut} unit="rate" />
@@ -74,30 +70,26 @@ export function Monitoring({ view, patch, onChanged }) {
           <StatTile label="Backlog" value={c.backlog} unit="count" hint="messages" />
           <StatTile label="Storage" value={c.storageSize} unit="bytes" />
           <StatTile label="Topics" value={c.topics} unit="count" hint={c.producers !== undefined ? `${c.producers} producers · ${c.consumers ?? 0} consumers` : null} />
-          <StatTile label="Writable bookies" value={c.writableBookies} unit="count" hint={c.bookies !== undefined ? `of ${c.bookies}` : null}
-            tone={c.bookies !== undefined && c.writableBookies < c.bookies ? 'warn' : null} />
         </div>
       )}
-      {view.kind === 'BookKeeperCluster' && (
+      {bookieScope && (
         <div className="tiles">
           <StatTile label="Writable bookies" value={c.writableBookies} unit="count" hint={c.bookies !== undefined ? `of ${c.bookies}` : null} />
           <StatTile label="Highest disk usage" value={c.maxDiskUsage} unit="percent" tone={c.maxDiskUsage > 80 ? 'warn' : null} />
         </div>
       )}
-
       <div className="charts">
-        {view.kind === 'PulsarCluster' && <>
+        {brokerScope && <>
           <LineChart title="Messages per second" unit="rate" step={step} series={[...cluster(data || {}, 'rateIn', 'in', 1), ...cluster(data || {}, 'rateOut', 'out', 2)]} />
           <LineChart title="Throughput" unit="bytesRate" step={step} series={[...cluster(data || {}, 'throughputIn', 'in', 1), ...cluster(data || {}, 'throughputOut', 'out', 2)]} />
           <LineChart title="Backlog (messages)" unit="count" step={step} series={cluster(data || {}, 'backlog', 'backlog', 1)} />
           <LineChart title="Stored data" unit="bytes" step={step} series={cluster(data || {}, 'storageSize', 'storage', 1)} />
         </>}
-        <LineChart title="Bookie ledger disk usage" unit="percent" step={step} yMax={100} series={perEntity(data?.series?.diskUsage, short)} />
+        {bookieScope && <><LineChart title="Bookie ledger disk usage" unit="percent" step={step} yMax={100} series={perEntity(data?.series?.diskUsage, short)} />
         <LineChart title="Bookie write throughput" unit="bytesRate" step={step} series={perEntity(data?.series?.writeBytes, short)} />
-        <LineChart title="Bookie add-entry latency, p99" unit="ms" step={step} series={perEntity(data?.series?.addP99, short)} empty="No writes in this range" />
-        {view.kind === 'PulsarCluster' && <LineChart title="ZooKeeper average latency" unit="ms" step={step} series={perEntity(data?.series?.zkLatency, short)} />}
+        <LineChart title="Bookie add-entry latency, p99" unit="ms" step={step} series={perEntity(data?.series?.addP99, short)} empty="No writes in this range" /></>}
+        {brokerScope && <LineChart title="ZooKeeper average latency" unit="ms" step={step} series={perEntity(data?.series?.zkLatency, short)} />}
       </div>
-
       {pods.length > 0 && (
         <table className="pods-table">
           <thead><tr><th>Pod</th><th>Component</th><th>Scrape</th><th>Heap</th><th>CPU</th></tr></thead>

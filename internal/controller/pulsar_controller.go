@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
+	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
+	"github.com/SongOf/pulsar-operator/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,9 +20,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
-	"github.com/SongOf/pulsar-operator/internal/resources"
+	"time"
 )
 
 // PulsarReconciler reconciles a PulsarCluster.
@@ -49,6 +47,8 @@ func (r *PulsarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		res, err = ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 	if err != nil {
+		status.Phase = v1.PhaseFailed
+		markStorageRejection(&status.Conditions, pc.Generation, err)
 		meta.SetStatusCondition(&status.Conditions, metav1.Condition{Type: v1.ConditionReady, Status: metav1.ConditionFalse, Reason: "ReconcileError", Message: err.Error(), ObservedGeneration: pc.Generation})
 	}
 	if !equalStatus(pc.Status, *status) {
@@ -59,24 +59,24 @@ func (r *PulsarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	return res, err
 }
-
 func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, status *v1.PulsarClusterStatus) (ctrl.Result, error) {
 	a := applier{c: r.Client, scheme: r.Scheme, owner: pc}
 	gen := pc.Generation
 	p := resources.Pulsar{C: pc}
 	status.ServiceURL, status.WebServiceURL = p.ServiceURL(), p.WebServiceURL()
-
 	// Monitoring runs independently of the other components, so it also records a failing start.
 	mon, err := reconcileMonitoring(ctx, a, resources.Monitoring{Cluster: pc.Name, Namespace: pc.Namespace, Domain: pc.Spec.ClusterDomain, Spec: pc.Spec.Monitoring})
+	status.Monitoring = mon
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	status.Monitoring = mon
-
 	// The ensemble size is fixed once created.
 	zkKey := types.NamespacedName{Namespace: pc.Namespace, Name: p.ZooKeeperName()}
 	existingZK, zkExists, err := getOptional(ctx, r.Client, zkKey, &appsv1.StatefulSet{})
 	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := a.requireUnchangedStorage(ctx, p.ZooKeeperStatefulSet("")); err != nil {
 		return ctrl.Result{}, err
 	}
 	if zkExists && ptr.Deref(existingZK.Spec.Replicas, 0) != p.ZooKeeperReplicas() {
@@ -88,7 +88,6 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 	} else {
 		meta.RemoveStatusCondition(&status.Conditions, v1.ConditionSpecRejected)
 	}
-
 	// 1. ZooKeeper.
 	zkCM := p.ZooKeeperConfigMap()
 	if err := a.configMap(ctx, zkCM); err != nil {
@@ -112,7 +111,6 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 		r.setReady(status, gen, false, "WaitingForZooKeeper")
 		return ctrl.Result{RequeueAfter: requeueBusy}, nil
 	}
-
 	// 2. Bookies, through the child BookKeeperCluster. An image change waits until ZooKeeper rolled out.
 	child := p.ChildBookKeeper()
 	existing := &v1.BookKeeperCluster{}
@@ -129,6 +127,9 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 	}
 	bk := &v1.BookKeeperCluster{ObjectMeta: metav1.ObjectMeta{Name: child.Name, Namespace: child.Namespace}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, bk, func() error {
+		if bk.UID != "" && !metav1.IsControlledBy(bk, pc) {
+			return fmt.Errorf("BookKeeperCluster %s already exists and is not controlled by this PulsarCluster; explicit adoption is required", client.ObjectKeyFromObject(bk))
+		}
 		bk.Labels = mergeMap(bk.Labels, child.Labels)
 		bk.Spec = child.Spec
 		return controllerutil.SetControllerReference(pc, bk, r.Scheme)
@@ -144,7 +145,6 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 		r.setReady(status, gen, false, "WaitingForBookKeeperMetadata")
 		return ctrl.Result{RequeueAfter: requeueBusy}, nil
 	}
-
 	// 3. Cluster metadata, once.
 	job, err := a.job(ctx, p.MetadataJob())
 	if err != nil {
@@ -164,7 +164,6 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 		r.setReady(status, gen, false, "InitializingMetadata")
 		return ctrl.Result{RequeueAfter: requeueBusy}, nil
 	}
-
 	// 4. Brokers. An image change waits until the bookies rolled out.
 	brokerCM := p.BrokerConfigMap()
 	if err := a.configMap(ctx, brokerCM); err != nil {
@@ -184,7 +183,6 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 		return ctrl.Result{}, err
 	}
 	status.Broker = stsStatus(broker)
-
 	// 5. Proxy. An image change waits until the brokers rolled out.
 	proxyReady := true
 	if pc.Spec.Proxy.Enabled {
@@ -212,14 +210,13 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: pc.Namespace, Name: p.ProxyName()}},
 			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: pc.Namespace, Name: p.ProxyName() + "-config"}},
 		} {
-			if err := deleteIfExists(ctx, r.Client, obj); err != nil {
+			if err := a.deleteOwned(ctx, obj); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 		status.Proxy = v1.ComponentStatus{}
 	}
-
-	ready := status.ZooKeeper.RolledOut && bkRolledOut && status.Broker.RolledOut && proxyReady
+	ready := status.ZooKeeper.RolledOut && bkRolledOut && status.Broker.RolledOut && proxyReady && !meta.IsStatusConditionTrue(status.Conditions, v1.ConditionSpecRejected)
 	switch {
 	case bk.Status.Phase == v1.PhaseDecommissioning || bk.Status.Phase == v1.PhaseFailed:
 		status.Phase = bk.Status.Phase
@@ -236,7 +233,6 @@ func (r *PulsarReconciler) reconcile(ctx context.Context, pc *v1.PulsarCluster, 
 	}
 	return ctrl.Result{RequeueAfter: requeueSteady}, nil
 }
-
 func metadataDone(s *v1.PulsarClusterStatus) bool {
 	return meta.IsStatusConditionTrue(s.Conditions, v1.ConditionMetadataInitialized)
 }
@@ -263,7 +259,6 @@ func (r *PulsarReconciler) holdImage(ctx context.Context, want *appsv1.StatefulS
 	}
 	return nil
 }
-
 func (r *PulsarReconciler) holdDeploymentImage(ctx context.Context, want *appsv1.Deployment, allow bool) error {
 	if allow {
 		return nil

@@ -3,25 +3,26 @@ package controller
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
-
+	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
+	"github.com/SongOf/pulsar-operator/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"os"
+	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-
-	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
+	"strings"
+	"testing"
+	"time"
 )
 
 // The tests drive the reconcilers step by step against a real API server. envtest runs no kubelet or
@@ -69,7 +70,6 @@ func namespace(t *testing.T) string {
 func bkReconciler() *BookKeeperReconciler {
 	return &BookKeeperReconciler{Client: k8s, Scheme: scheme, Recorder: record.NewFakeRecorder(100)}
 }
-
 func pcReconciler() *PulsarReconciler {
 	return &PulsarReconciler{Client: k8s, Scheme: scheme, Recorder: record.NewFakeRecorder(100)}
 }
@@ -80,14 +80,12 @@ func reconcileBK(t *testing.T, ns, name string) {
 		t.Fatalf("reconcile: %v", err)
 	}
 }
-
 func reconcilePC(t *testing.T, ns, name string) {
 	t.Helper()
 	if _, err := pcReconciler().Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: name}}); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 }
-
 func get[T client.Object](t *testing.T, ns, name string, obj T) T {
 	t.Helper()
 	if err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, obj); err != nil {
@@ -95,7 +93,6 @@ func get[T client.Object](t *testing.T, ns, name string, obj T) T {
 	}
 	return obj
 }
-
 func absent(t *testing.T, ns, name string, obj client.Object) bool {
 	t.Helper()
 	err := k8s.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, obj)
@@ -105,7 +102,6 @@ func absent(t *testing.T, ns, name string, obj client.Object) bool {
 	}
 	return client.IgnoreNotFound(err) == nil
 }
-
 func completeJob(t *testing.T, ns, name string) {
 	t.Helper()
 	job := get(t, ns, name, &batchv1.Job{})
@@ -133,7 +129,6 @@ func rollOut(t *testing.T, ns, name string) {
 		t.Fatalf("roll out %s: %v", name, err)
 	}
 }
-
 func rollOutDeployment(t *testing.T, ns, name string) {
 	t.Helper()
 	d := get(t, ns, name, &appsv1.Deployment{})
@@ -143,15 +138,24 @@ func rollOutDeployment(t *testing.T, ns, name string) {
 		t.Fatalf("roll out %s: %v", name, err)
 	}
 }
-
 func createPod(t *testing.T, ns, name string) {
 	t.Helper()
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "c", Image: "x"}}}}
+	if index := strings.LastIndex(name, "-"); index > 0 {
+		sts := &appsv1.StatefulSet{}
+		if err := k8s.Get(context.Background(), client.ObjectKey{Namespace: ns, Name: name[:index]}, sts); err == nil {
+			pod.Labels = sts.Labels
+			pod.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(sts, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}
+			for _, claim := range sts.Spec.VolumeClaimTemplates {
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: claim.Name,
+					VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: claim.Name + "-" + name}}})
+			}
+		}
+	}
 	if err := k8s.Create(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
 }
-
 func deletePod(t *testing.T, ns, name string) {
 	t.Helper()
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name}}
@@ -186,6 +190,10 @@ func boundPVC(t *testing.T, ns, name, size string, class *string) {
 			Resources:        corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(size)}},
 		},
 	}
+	if index := strings.Index(name, "-bookie-"); index > 0 {
+		cluster := strings.TrimPrefix(strings.TrimPrefix(name[:index], "journal-"), "ledgers-")
+		pvc.Labels = resources.Labels(cluster, resources.Bookie)
+	}
 	if err := k8s.Create(ctx, pvc); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +203,6 @@ func boundPVC(t *testing.T, ns, name, size string, class *string) {
 		t.Fatal(err)
 	}
 }
-
 func derefString(s *string) string {
 	if s == nil {
 		return ""
@@ -210,4 +217,21 @@ func gcOrphan(t *testing.T, obj client.Object) {
 	if err := k8s.Update(context.Background(), obj); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// envtest has no garbage collector or PVC-protection controller. Complete an
+// already requested deletion only after the test has removed the using Pod.
+func finishDeletion(t *testing.T, ns, name string, obj client.Object) {
+	t.Helper()
+	err := k8s.Get(context.Background(), client.ObjectKey{Namespace: ns, Name: name}, obj)
+	if apierrors.IsNotFound(err) {
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if obj.GetDeletionTimestamp() == nil {
+		t.Fatalf("delete of %T %s was not requested", obj, name)
+	}
+	gcOrphan(t, obj)
 }

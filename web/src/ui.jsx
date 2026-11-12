@@ -7,7 +7,6 @@ const phaseTone = {
 export function PhaseBadge({ phase }) {
   return <span className={'badge ' + (phaseTone[phase] || 'muted')}>{phase || 'Pending'}</span>
 }
-
 export function Section({ title, actions, children }) {
   return (
     <section className="card">
@@ -21,7 +20,6 @@ export function Ready({ ready, total }) {
   const tone = total === 0 ? 'muted' : ready === total ? 'ok' : ready === 0 ? 'bad' : 'warn'
   return <span className={'ready ' + tone}>{ready ?? 0}/{total ?? 0}</span>
 }
-
 // useAction runs a change and reports its outcome next to the control.
 export function useAction(onChanged) {
   const [state, setState] = React.useState({ busy: false, error: null, done: null })
@@ -35,9 +33,8 @@ export function useAction(onChanged) {
       setState({ busy: false, error: e.message, done: null })
     }
   }
-  return [state, run]
+  return [state, run, () => setState({ busy: false, error: null, done: null })]
 }
-
 export function ActionStatus({ state }) {
   if (state.busy) return <span className="muted small">Applying…</span>
   if (state.error) return <span className="error-text small">{state.error}</span>

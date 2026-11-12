@@ -1,0 +1,26 @@
+# Apply only after the corresponding DiskPool is Ready and OpenEBS LVM CSI
+# is installed. The node is selected through StorageClass topology + WFFC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: diskfleet-smoke
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: diskfleet-worker-01-ssd-01
+  resources:
+    requests: {storage: 1Gi}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: diskfleet-smoke
+spec:
+  containers:
+    - name: writer
+      image: busybox:1.37.0
+      command: [sh, -c, 'test -f /data/probe || date -u > /data/probe; cat /data/probe; sleep 86400']
+      volumeMounts:
+        - {name: data, mountPath: /data}
+  volumes:
+    - name: data
+      persistentVolumeClaim: {claimName: diskfleet-smoke}

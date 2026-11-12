@@ -17,7 +17,6 @@ import (
 
 // PrometheusComponent labels the Prometheus of a cluster.
 const PrometheusComponent = "prometheus"
-
 // Monitoring builds the Prometheus that keeps a cluster's metrics on a persistent volume. It scrapes the pods of
 // one cluster (its instance label) that carry the prometheus.io/scrape annotation, and labels every series with
 // namespace, pulsar_cluster, component and pod, which the console's queries select on.
@@ -25,13 +24,11 @@ type Monitoring struct {
 	Cluster, Namespace, Domain string
 	Spec                       v1.MonitoringSpec
 }
-
 // Name is the Prometheus StatefulSet, Service, ServiceAccount, Role and ConfigMap.
 func (m Monitoring) Name() string { return Name(m.Cluster, PrometheusComponent) }
 
 // Deployed reports whether the operator runs a Prometheus for the cluster.
 func (m Monitoring) Deployed() bool { return m.Spec.Enabled && m.Spec.PrometheusURL == "" }
-
 // URL is the Prometheus the console queries, or empty when monitoring is off.
 func (m Monitoring) URL() string {
 	switch {
@@ -44,7 +41,6 @@ func (m Monitoring) URL() string {
 }
 
 func (m Monitoring) labels() map[string]string { return Labels(m.Cluster, PrometheusComponent) }
-
 func (m Monitoring) retention() string {
 	if r := m.Spec.Prometheus.Retention; r != "" {
 		return r
@@ -58,7 +54,6 @@ func (m Monitoring) storage() v1.VolumeSpec {
 	}
 	return v1.VolumeSpec{Size: resource.MustParse("20Gi")}
 }
-
 // RetentionSize is the on-disk cap: the configured one, or 80% of the volume.
 func (m Monitoring) RetentionSize() string {
 	if r := m.Spec.Prometheus.RetentionSize; r != "" {
@@ -74,7 +69,6 @@ func (m Monitoring) interval() string {
 	}
 	return "15s"
 }
-
 // Config is prometheus.yml.
 func (m Monitoring) Config() string {
 	return fmt.Sprintf(`global:
@@ -113,7 +107,6 @@ scrape_configs:
         target_label: pod
 `, m.interval(), m.Namespace, m.Cluster) + m.remoteWrite()
 }
-
 // remoteWrite renders the remote_write section; credentials are read from mounted Secrets, never inlined.
 func (m Monitoring) remoteWrite() string {
 	if len(m.Spec.Prometheus.RemoteWrite) == 0 {
@@ -130,7 +123,6 @@ func (m Monitoring) remoteWrite() string {
 	}
 	return b.String()
 }
-
 // ConfigMap holds prometheus.yml.
 func (m Monitoring) ConfigMap() *corev1.ConfigMap {
 	return ConfigMap(m.Name()+"-config", m.Namespace, m.labels(), map[string]string{"prometheus.yml": m.Config()})
@@ -140,14 +132,12 @@ func (m Monitoring) ConfigMap() *corev1.ConfigMap {
 func (m Monitoring) ServiceAccount() *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: m.Name(), Namespace: m.Namespace, Labels: m.labels()}}
 }
-
 func (m Monitoring) Role() *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{Name: m.Name(), Namespace: m.Namespace, Labels: m.labels()},
 		Rules:      []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list", "watch"}}},
 	}
 }
-
 func (m Monitoring) RoleBinding() *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{Name: m.Name(), Namespace: m.Namespace, Labels: m.labels()},
@@ -155,7 +145,6 @@ func (m Monitoring) RoleBinding() *rbacv1.RoleBinding {
 		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: m.Name(), Namespace: m.Namespace}},
 	}
 }
-
 // Service exposes the Prometheus API to the console.
 func (m Monitoring) Service() *corev1.Service {
 	return &corev1.Service{
@@ -163,7 +152,6 @@ func (m Monitoring) Service() *corev1.Service {
 		Spec:       corev1.ServiceSpec{Selector: m.labels(), Ports: []corev1.ServicePort{Port("http", 9090)}},
 	}
 }
-
 // StatefulSet runs Prometheus with its TSDB on a PVC, so samples survive restarts. A configuration change
 // restarts it; it replays its write-ahead log and loses nothing.
 func (m Monitoring) StatefulSet(configHash string) *appsv1.StatefulSet {
@@ -223,7 +211,6 @@ func (m Monitoring) StatefulSet(configHash string) *appsv1.StatefulSet {
 		},
 	}
 }
-
 func (m Monitoring) secrets() []string {
 	seen := map[string]bool{}
 	var out []string
@@ -235,7 +222,6 @@ func (m Monitoring) secrets() []string {
 	}
 	return out
 }
-
 func (m Monitoring) mounts() []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
 		{Name: "config", MountPath: "/etc/prometheus/prometheus.yml", SubPath: "prometheus.yml", ReadOnly: true},
@@ -246,7 +232,6 @@ func (m Monitoring) mounts() []corev1.VolumeMount {
 	}
 	return mounts
 }
-
 func (m Monitoring) volumes() []corev1.Volume {
 	vols := []corev1.Volume{{Name: "config", VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
 		LocalObjectReference: corev1.LocalObjectReference{Name: m.Name() + "-config"}}}}}

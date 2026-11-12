@@ -17,7 +17,6 @@ import (
 
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
-
 // reconcileMonitoring deploys or removes the cluster's Prometheus and reports where its metrics are. Turning
 // monitoring off deletes Prometheus but keeps its PVC, so turning it on again keeps the history.
 func reconcileMonitoring(ctx context.Context, a applier, m resources.Monitoring) (v1.MonitoringStatus, error) {
@@ -31,12 +30,17 @@ func reconcileMonitoring(ctx context.Context, a applier, m resources.Monitoring)
 			&rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: m.Name()}},
 			&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: m.Name()}},
 		} {
-			if err := deleteIfExists(ctx, a.c, obj); err != nil {
+			if err := a.deleteOwned(ctx, obj); err != nil {
 				return status, err
 			}
 		}
 		status.Ready = m.Spec.PrometheusURL != ""
 		return status, nil
+	}
+	// Refuse layout changes before changing retention flags or restarting Prometheus:
+	// a larger retention cap on the unchanged PVC can otherwise fill the disk.
+	if err := a.requireUnchangedStorage(ctx, m.StatefulSet("")); err != nil {
+		return status, err
 	}
 	sa := m.ServiceAccount()
 	if _, err := controllerutil.CreateOrUpdate(ctx, a.c, sa, func() error { sa.Labels = mergeMap(sa.Labels, m.ServiceAccount().Labels); return a.own(sa) }); err != nil {

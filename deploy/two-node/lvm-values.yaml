@@ -1,0 +1,30 @@
+# Values for the explicitly documented stable chart lvm-localpv 1.10.1.
+# Review compatibility and existing CSI ownership before installing/upgrading.
+# Kubernetes 1.37 runtime compatibility has not been verified in this workspace.
+analytics:
+  enabled: false
+lvmPlugin:
+  image:
+    tag: "1.10.1"
+lvmNode:
+  kubeletDir: /var/lib/kubelet/
+  nodeSelector:
+    pulsar.songof.dev/two-node: "true"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+lvmController:
+  replicas: 1
+  nodeSelector:
+    pulsar.songof.dev/two-node: "true"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule

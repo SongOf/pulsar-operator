@@ -380,8 +380,8 @@ spec:
                             - type: integer
                             - type: string
                             description: |-
-                              Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                              decreasing it is refused.
+                              Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                              ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClassName:
@@ -549,8 +549,8 @@ spec:
                         - type: integer
                         - type: string
                         description: |-
-                          Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                          decreasing it is refused.
+                          Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                          ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       storageClassName:
@@ -569,8 +569,8 @@ spec:
                         - type: integer
                         - type: string
                         description: |-
-                          Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                          decreasing it is refused.
+                          Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                          ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       storageClassName:
@@ -781,6 +781,13 @@ spec:
                     description: DecommissionPhase is the step a bookie scale-in is
                       at.
                     type: string
+                  pvcUIDs:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      PVCUIDs records the exact journal/ledger claims before stopping a bookie.
+                      Cleanup must never delete a different claim recreated under the same name.
+                    type: object
                   startedAt:
                     format: date-time
                     type: string
@@ -814,6 +821,76 @@ spec:
               phase:
                 description: Phase summarises the state of a cluster.
                 type: string
+              recreation:
+                description: |-
+                  Recreation preserves the safe replica boundary and volume layout across an orphaning
+                  StatefulSet replacement. It is cleared only after the replacement exists.
+                properties:
+                  replicas:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  storage:
+                    description: 'BookKeeperStorage is the disk layout of every bookie:
+                      one journal and one ledger PVC per bookie.'
+                    properties:
+                      journal:
+                        description: VolumeSpec describes one persistent volume claim
+                          per pod.
+                        properties:
+                          size:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: |-
+                              Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                              ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          storageClassName:
+                            description: StorageClassName of the PVCs; the cluster
+                              default when empty. Cannot be changed after creation.
+                            type: string
+                        required:
+                        - size
+                        type: object
+                      ledger:
+                        description: VolumeSpec describes one persistent volume claim
+                          per pod.
+                        properties:
+                          size:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            description: |-
+                              Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                              ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          storageClassName:
+                            description: StorageClassName of the PVCs; the cluster
+                              default when empty. Cannot be changed after creation.
+                            type: string
+                        required:
+                        - size
+                        type: object
+                      reclaimPolicy:
+                        default: Retain
+                        description: |-
+                          ReclaimPolicy applies when the BookKeeperCluster is deleted. PVCs of a decommissioned bookie are always
+                          deleted, because its data has been re-replicated and its cookie removed.
+                        enum:
+                        - Retain
+                        - Delete
+                        type: string
+                    required:
+                    - journal
+                    - ledger
+                    type: object
+                required:
+                - replicas
+                - storage
+                type: object
             type: object
         type: object
     served: true

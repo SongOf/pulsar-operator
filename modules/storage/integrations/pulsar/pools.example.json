@@ -1,0 +1,62 @@
+[
+  {
+    "id": "journal-0",
+    "uid": "EXAMPLE-UID-journal-0",
+    "node": "worker-0",
+    "vgName": "df_journal_0",
+    "topologyHostname": "host-0",
+    "state": "Ready",
+    "capacityBytes": 107374182400,
+    "availableBytes": 107374182400
+  },
+  {
+    "id": "journal-1",
+    "uid": "EXAMPLE-UID-journal-1",
+    "node": "worker-1",
+    "vgName": "df_journal_1",
+    "topologyHostname": "host-1",
+    "state": "Ready",
+    "capacityBytes": 107374182400,
+    "availableBytes": 107374182400
+  },
+  {
+    "id": "journal-2",
+    "uid": "EXAMPLE-UID-journal-2",
+    "node": "worker-2",
+    "vgName": "df_journal_2",
+    "topologyHostname": "host-2",
+    "state": "Ready",
+    "capacityBytes": 107374182400,
+    "availableBytes": 107374182400
+  },
+  {
+    "id": "ledger-0",
+    "uid": "EXAMPLE-UID-ledger-0",
+    "node": "worker-0",
+    "vgName": "df_ledger_0",
+    "topologyHostname": "host-0",
+    "state": "Ready",
+    "capacityBytes": 107374182400,
+    "availableBytes": 107374182400
+  },
+  {
+    "id": "ledger-1",
+    "uid": "EXAMPLE-UID-ledger-1",
+    "node": "worker-1",
+    "vgName": "df_ledger_1",
+    "topologyHostname": "host-1",
+    "state": "Ready",
+    "capacityBytes": 107374182400,
+    "availableBytes": 107374182400
+  },
+  {
+    "id": "ledger-2",
+    "uid": "EXAMPLE-UID-ledger-2",
+    "node": "worker-2",
+    "vgName": "df_ledger_2",
+    "topologyHostname": "host-2",
+    "state": "Ready",
+    "capacityBytes": 107374182400,
+    "availableBytes": 107374182400
+  }
+]

@@ -12,7 +12,6 @@ import (
 
 	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
 )
-
 func bookkeeper() *v1.BookKeeperCluster {
 	return &v1.BookKeeperCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "demo", Namespace: "pulsar"},
@@ -28,7 +27,6 @@ func bookkeeper() *v1.BookKeeperCluster {
 		},
 	}
 }
-
 func TestBookieIdentity(t *testing.T) {
 	b := BookKeeper{C: bookkeeper()}
 	if got, want := b.BookieID(2), "demo-bookie-2.demo-bookie.pulsar.svc.cluster.local:3181"; got != want {
@@ -42,14 +40,12 @@ func TestBookieIdentity(t *testing.T) {
 		t.Fatalf("BookieID ignores the cluster domain: %q", got)
 	}
 }
-
 func TestMetadataServiceURIUsesSemicolons(t *testing.T) {
 	b := BookKeeper{C: bookkeeper()}
 	if got, want := b.MetadataServiceURI(), "zk+hierarchical://zk-0.zk:2181;zk-1.zk:2181/ledgers"; got != want {
 		t.Fatalf("MetadataServiceURI = %q, want %q", got, want)
 	}
 }
-
 func TestConfigDataPrecedence(t *testing.T) {
 	data := ConfigData(
 		map[string]string{"a": "default", "owned": "operator"},
@@ -64,7 +60,6 @@ func TestConfigDataPrecedence(t *testing.T) {
 		}
 	}
 }
-
 func TestHashIsStableAndSensitive(t *testing.T) {
 	a := Hash(map[string]string{"x": "1", "y": "2"})
 	if a != Hash(map[string]string{"y": "2", "x": "1"}) {
@@ -77,7 +72,6 @@ func TestHashIsStableAndSensitive(t *testing.T) {
 		t.Fatal("hash confuses key and value boundaries")
 	}
 }
-
 func TestBookieStatefulSet(t *testing.T) {
 	bk := bookkeeper()
 	bk.Spec.Storage.ReclaimPolicy = v1.ReclaimDelete
@@ -115,7 +109,6 @@ func TestBookieStatefulSet(t *testing.T) {
 		t.Fatal("volume template hash missing")
 	}
 }
-
 func TestVolumeTemplateHashFollowsSizes(t *testing.T) {
 	bk := bookkeeper()
 	before := BookKeeper{C: bk}.VolumeTemplateHash()
@@ -128,7 +121,6 @@ func TestVolumeTemplateHashFollowsSizes(t *testing.T) {
 		t.Fatal("a new ledger size kept the volume template hash")
 	}
 }
-
 func TestDecommissionJobTargetsTheBookie(t *testing.T) {
 	b := BookKeeper{C: bookkeeper()}
 	job := b.DecommissionJob(2)
@@ -140,7 +132,6 @@ func TestDecommissionJobTargetsTheBookie(t *testing.T) {
 		t.Fatalf("name = %q", job.Name)
 	}
 }
-
 func pulsar() *v1.PulsarCluster {
 	return &v1.PulsarCluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "pc", Namespace: "ns"},
@@ -154,7 +145,6 @@ func pulsar() *v1.PulsarCluster {
 		},
 	}
 }
-
 func TestZooKeeperEnsemble(t *testing.T) {
 	p := Pulsar{C: pulsar()}
 	if p.ZooKeeperReplicas() != 3 {
@@ -168,7 +158,6 @@ func TestZooKeeperEnsemble(t *testing.T) {
 		t.Fatalf("connect = %q", got)
 	}
 }
-
 func TestBrokerConfigKeepsOwnedKeys(t *testing.T) {
 	cm := Pulsar{C: pulsar()}.BrokerConfigMap()
 	if cm.Data["PULSAR_PREFIX_clusterName"] != "pc" {
@@ -181,7 +170,6 @@ func TestBrokerConfigKeepsOwnedKeys(t *testing.T) {
 		t.Fatalf("metadataStoreUrl = %q", cm.Data["PULSAR_PREFIX_metadataStoreUrl"])
 	}
 }
-
 func TestChildBookKeeperInheritsImage(t *testing.T) {
 	child := Pulsar{C: pulsar()}.ChildBookKeeper()
 	if child.Name != "pc" || child.Spec.Image != "apachepulsar/pulsar:4.0.14" || child.Spec.Replicas != 3 {
@@ -191,7 +179,6 @@ func TestChildBookKeeperInheritsImage(t *testing.T) {
 		t.Fatalf("child zookeeper = %q", child.Spec.ZooKeeper)
 	}
 }
-
 func TestJVMOptions(t *testing.T) {
 	if got := JVMOptions(v1.JVMSpec{}, "1g", "2g"); got != "-Xms1g -Xmx1g -XX:MaxDirectMemorySize=2g" {
 		t.Fatalf("defaults = %q", got)
@@ -200,7 +187,6 @@ func TestJVMOptions(t *testing.T) {
 		t.Fatalf("custom = %q", got)
 	}
 }
-
 func TestAffinityModes(t *testing.T) {
 	l := Labels("c", Bookie)
 	if Affinity(v1.AntiAffinityNone, l) != nil {
@@ -213,7 +199,6 @@ func TestAffinityModes(t *testing.T) {
 		t.Fatal("default should be Preferred")
 	}
 }
-
 func TestMonitoringPrometheus(t *testing.T) {
 	m := Monitoring{Cluster: "demo", Namespace: "pulsar", Spec: v1.MonitoringSpec{Enabled: true}}
 	if !m.Deployed() || m.URL() != "http://demo-prometheus.pulsar.svc.cluster.local:9090" {
@@ -236,7 +221,6 @@ func TestMonitoringPrometheus(t *testing.T) {
 	if got := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests[corev1.ResourceStorage]; got.String() != "20Gi" {
 		t.Fatalf("volume = %s", got.String())
 	}
-
 	m.Spec.Prometheus = v1.PrometheusSpec{RetentionSize: "5GB", RemoteWrite: []v1.RemoteWriteSpec{{URL: "http://vm:8480/write", BasicAuthSecret: "vm-auth"}}}
 	cfg = m.Config()
 	if !strings.Contains(cfg, `- url: "http://vm:8480/write"`) || !strings.Contains(cfg, "password_file: /etc/prometheus/secrets/vm-auth/password") {
@@ -246,7 +230,6 @@ func TestMonitoringPrometheus(t *testing.T) {
 	if !strings.Contains(strings.Join(sts.Spec.Template.Spec.Containers[0].Args, " "), "retention.size=5GB") || len(sts.Spec.Template.Spec.Volumes) != 2 {
 		t.Fatal("custom retention size or secret volume missing")
 	}
-
 	ext := Monitoring{Cluster: "demo", Namespace: "pulsar", Spec: v1.MonitoringSpec{Enabled: true, PrometheusURL: "http://prom.monitoring:9090/"}}
 	if ext.Deployed() || ext.URL() != "http://prom.monitoring:9090" {
 		t.Fatalf("external: deployed=%v url=%q", ext.Deployed(), ext.URL())
@@ -255,7 +238,6 @@ func TestMonitoringPrometheus(t *testing.T) {
 		t.Fatal("disabled monitoring has a URL")
 	}
 }
-
 func TestComponentsAdvertiseMetrics(t *testing.T) {
 	sts := BookKeeper{C: bookkeeper()}.StatefulSet(3, "h")
 	a := sts.Spec.Template.Annotations

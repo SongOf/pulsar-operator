@@ -1,0 +1,87 @@
+{
+  "repository": "https://github.com/SongOf/pulsar-operator.git",
+  "observedMainShortCommit": "3c042c5",
+  "commitEvidence": "https://github.com/SongOf/pulsar-operator/commit/main",
+  "fullMainCommitVerified": false,
+  "confirmedPinnedRawURL": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/common_types.go",
+  "observedDefaultPulsarImage": "apachepulsar/pulsar:4.0.14",
+  "storageClassPaths": [
+    "spec.zookeeper.storage.storageClassName",
+    "spec.bookkeeper.storage.journal.storageClassName",
+    "spec.bookkeeper.storage.ledger.storageClassName",
+    "spec.monitoring.prometheus.storage.storageClassName"
+  ],
+  "bookkeeper": {
+    "statefulSetName": "<cluster>-bookie",
+    "journalPVC": "journal-<cluster>-bookie-<ordinal>",
+    "ledgerPVC": "ledgers-<cluster>-bookie-<ordinal>",
+    "journalMount": "/pulsar/data/bookkeeper/journal",
+    "ledgerMount": "/pulsar/data/bookkeeper/ledgers",
+    "accessModes": [
+      "ReadWriteOnce"
+    ],
+    "pvcLabels": {
+      "app.kubernetes.io/name": "pulsar",
+      "app.kubernetes.io/instance": "<cluster>",
+      "app.kubernetes.io/component": "bookie",
+      "app.kubernetes.io/managed-by": "pulsar-operator"
+    },
+    "diskfleetManagedLabelPresent": false,
+    "whenScaled": "Retain",
+    "whenDeleted": "from spec.bookkeeper.storage.reclaimPolicy",
+    "decommissionDeletesPVCsRegardlessOfReclaimPolicy": true,
+    "resizeThrough": "PulsarCluster spec.bookkeeper.storage.{journal,ledger}.size; parent propagates to child BookKeeperCluster",
+    "storageClassChangesRejected": true,
+    "shrinkRejected": true,
+    "volumeTemplateUpdate": "Orphan-delete/recreate StatefulSet; retain running Pods/PVCs"
+  },
+  "podPolicy": {
+    "fields": [
+      "nodeSelector",
+      "tolerations",
+      "antiAffinity",
+      "annotations",
+      "priorityClassName"
+    ],
+    "antiAffinityModes": [
+      "None",
+      "Preferred",
+      "Required"
+    ],
+    "defaultAntiAffinity": "Preferred",
+    "antiAffinityTopologyKey": "kubernetes.io/hostname",
+    "fsGroup": 0,
+    "fsGroupChangePolicy": "OnRootMismatch"
+  },
+  "zookeeper": {
+    "statefulSetName": "<cluster>-zookeeper",
+    "pvc": "data-<cluster>-zookeeper-<ordinal>",
+    "mount": "/pulsar/data/zookeeper",
+    "accessModes": [
+      "ReadWriteOnce"
+    ]
+  },
+  "sources": [
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/api/v1alpha1/common_types.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/api/v1alpha1/bookkeepercluster_types.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/internal/resources/common.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/internal/resources/bookkeeper.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/internal/resources/pulsar.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/internal/controller/bookkeeper_controller.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/internal/controller/apply.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/main/config/manager/manager.yaml"
+  ],
+  "validationLimits": [
+    "Repository read through remote web tool, not git clone",
+    "No downloaded source executed",
+    "No Go tests, envtest or real Kubernetes cluster executed"
+  ],
+  "observedAt": "2026-11-13",
+  "sourceSelection": "Supplied SongOf repository only; no replacement with Apache Helm charts or StreamNative CRDs",
+  "confirmedPinnedRawURLs": [
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/common_types.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/resources/common.go",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/manager/manager.yaml",
+    "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/Makefile"
+  ]
+}

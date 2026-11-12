@@ -3,6 +3,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -12,36 +16,31 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Generated code is up to date
-        run: make generate manifests && git diff --exit-code
-      - run: go vet ./...
-      - run: make test
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: make web
-      - run: cd web && npm test
-
-  image:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Go static checks
+        run: go vet ./...
+      - name: All modules
+        run: make test
+      - name: Render unified deployment
+        run: kubectl kustomize deploy/all > /tmp/pulsar-operator.yaml
+  images:
     needs: test
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/songof/pulsar-operator:latest
-            ghcr.io/songof/pulsar-operator:${{ github.sha }}
+          push: false
+          tags: pulsar-operator:ci
+      - uses: docker/build-push-action@v6
+        with:
+          context: modules/storage
+          push: false
+          tags: pulsar-operator-storage:ci

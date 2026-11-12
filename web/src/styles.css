@@ -25,6 +25,9 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
 aside { background: var(--panel); border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .brand { font-weight: 700; font-size: 16px; }
+.console-module-link { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); text-decoration: none; }
+.console-module-link:hover { background: var(--info-bg); }
+.console-module-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 nav { display: flex; flex-direction: column; gap: 4px; }
 .nav-item { text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; border: 1px solid transparent; background: none; }
 .nav-item.active { background: var(--info-bg); border-color: var(--line); }

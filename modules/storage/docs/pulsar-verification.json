@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/SongOf/pulsar-operator.git",
+  "observedRevision": "3c042c5",
+  "sourceRead": true,
+  "localTestsPassed": 101,
+  "clusterTests": 31,
+  "pulsarContractTests": 10,
+  "frontendV8Templates": 7,
+  "offlinePlanObjects": 5,
+  "shellSyntaxPassed": true,
+  "embeddedPythonBlocksCompiled": 12,
+  "liveE2E": "blocked-before-cluster-operations",
+  "preflightExitCode": 1,
+  "preflightError": "current-context is not set",
+  "upstreamGoTests": "not-run",
+  "realDiskWrites": false
+}

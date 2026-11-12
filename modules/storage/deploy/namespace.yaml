@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: diskfleet-system
+  labels:
+    app.kubernetes.io/part-of: diskfleet
+    # The node storage agent needs hostPID and privileged device access.
+    pod-security.kubernetes.io/enforce: privileged

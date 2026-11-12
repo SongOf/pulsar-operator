@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 )
-
 // Dashboard is everything the console's monitoring view draws.
 type Dashboard struct {
 	Source       string  `json:"source"`
@@ -23,7 +22,6 @@ type Dashboard struct {
 	// Errors lists queries that failed, so a partial dashboard says what is missing.
 	Errors []string `json:"errors,omitempty"`
 }
-
 // PodRow is the latest state of one scraped pod.
 type PodRow struct {
 	Pod       string  `json:"pod"`
@@ -40,7 +38,6 @@ type panel struct {
 	metric, query string
 	perPod        bool
 }
-
 var panels = []panel{
 	{"rateIn", `sum(pulsar_broker_rate_in{%[1]s})`, false},
 	{"rateOut", `sum(pulsar_broker_rate_out{%[1]s})`, false},
@@ -56,7 +53,6 @@ var panels = []panel{
 	{"zkLatency", `max by (pod) (avg_latency{%[1]s,component="zookeeper"})`, true},
 	{"zkConnections", `max by (pod) (num_alive_connections{%[1]s,component="zookeeper"})`, true},
 }
-
 // stats are instant values for the tiles.
 var stats = map[string]string{
 	"rateIn":          `sum(pulsar_broker_rate_in{%[1]s})`,
@@ -74,7 +70,6 @@ var stats = map[string]string{
 	"maxDiskUsage":    `max({__name__=~"bookie_ledger_dir_.+_usage",%[1]s})`,
 	"targetsDown":     `count(up{%[1]s} == 0) or vector(0)`,
 }
-
 // podQueries fill the pod table.
 var podQueries = map[string]string{
 	"up":       `max by (pod, component) (up{%[1]s})`,
@@ -82,7 +77,6 @@ var podQueries = map[string]string{
 	"heapMax":  `max by (pod) (jvm_memory_bytes_max{%[1]s,area="heap"})`,
 	"cpu":      `sum by (pod) (rate(process_cpu_seconds_total{%[1]s}[%[2]s]))`,
 }
-
 // Selector picks one cluster's series by the labels the operator's scrape configuration sets.
 func Selector(namespace, cluster string) string {
 	return fmt.Sprintf(`namespace=%q,pulsar_cluster=%q`, namespace, cluster)
@@ -96,7 +90,6 @@ func StepFor(rng time.Duration) time.Duration {
 	}
 	return step.Truncate(time.Second)
 }
-
 // Build runs every query of the dashboard concurrently. A failing query leaves its panel empty and is listed
 // in Errors; the dashboard fails only when Prometheus cannot be reached at all.
 func Build(ctx context.Context, p Prometheus, namespace, cluster string, rng time.Duration, now time.Time) (Dashboard, error) {
@@ -109,12 +102,10 @@ func Build(ctx context.Context, p Prometheus, namespace, cluster string, rng tim
 	q := func(tmpl string) string { return fmt.Sprintf(tmpl, sel, window) }
 	d := Dashboard{Source: p.URL, RangeMinutes: int(rng.Minutes()), StepSeconds: int(step.Seconds()), UpdatedAt: now.UTC().Format(time.RFC3339),
 		Series: map[string]map[string][]Point{}, Current: map[string]float64{}, Pods: []PodRow{}}
-
 	// Reachability first, so an unreachable Prometheus is one clear error instead of twenty.
 	if _, err := p.Instant(ctx, "vector(1)", now); err != nil {
 		return d, err
 	}
-
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	fail := func(name string, err error) {
@@ -209,7 +200,6 @@ func Build(ctx context.Context, p Prometheus, namespace, cluster string, rng tim
 	sort.Strings(d.Errors)
 	return d, nil
 }
-
 // ParseRange accepts the console's ranges: 15m, 1h, 6h, 24h, 7d.
 func ParseRange(s string) (time.Duration, error) {
 	if s == "" {

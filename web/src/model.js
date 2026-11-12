@@ -8,7 +8,6 @@ export function nest(path, value) {
 export function get(obj, path) {
   return path.reduce((o, k) => (o == null ? undefined : o[k]), obj)
 }
-
 export function pulsarView(pc, child) {
   const s = pc.spec, st = pc.status || {}, cs = child?.status || {}
   const components = [
@@ -31,7 +30,6 @@ export function pulsarView(pc, child) {
     paused: s.paused,
   }
 }
-
 export function bookkeeperView(bk) {
   const s = bk.spec, st = bk.status || {}
   return {
@@ -50,9 +48,7 @@ export function bookkeeperView(bk) {
     paused: s.paused,
   }
 }
-
 export const DEFAULT_IMAGE = 'apachepulsar/pulsar:4.0.14'
-
 // upgradePlan lists the components in the order the operator upgrades them, each with the image it should run,
 // the image it runs and where it stands: current, rolling, or waiting for the component before it.
 export function upgradePlan(view) {
@@ -78,7 +74,6 @@ export function upgradePlan(view) {
     return { ...c, override, desired, running: st.image, state, detail }
   })
 }
-
 // bookieRemoval decides whether one more bookie may be decommissioned now: one at a time, from a healthy
 // cluster, never below the minimum. It returns the bookie that would go, or why none can.
 export function bookieRemoval(view, c) {
@@ -92,13 +87,11 @@ export function bookieRemoval(view, c) {
   else if ((st.readyReplicas ?? 0) < running || !st.rolledOut) blocked = 'every bookie must be ready before one is removed'
   return { ordinal, target, blocked, busy: !!view.decommission || c.desired !== running }
 }
-
 // Conditions worth a person's attention: anything not in its healthy state.
 export function problems(conditions) {
   const healthy = { Ready: 'True', MetadataInitialized: 'True', StorageResized: 'True', ScaleInBlocked: 'False', SpecRejected: 'False' }
   return conditions.filter(c => healthy[c.type] !== undefined && c.status !== healthy[c.type] && !(c.type === 'Ready' && c.reason === 'AllComponentsReady'))
 }
-
 export function newPulsarCluster(f) {
   const vol = (size, sc) => (sc ? { size, storageClassName: sc } : { size })
   return {
@@ -106,10 +99,10 @@ export function newPulsarCluster(f) {
     metadata: { name: f.name, namespace: f.namespace },
     spec: {
       image: f.image,
-      zookeeper: { replicas: +f.zkReplicas, storage: vol(f.zkSize, f.storageClass) },
+      zookeeper: { replicas: +f.zkReplicas, storage: vol(f.zkSize, f.zkStorageClass ?? f.storageClass) },
       bookkeeper: {
         replicas: +f.bookies, minReplicas: +f.minBookies,
-        storage: { journal: vol(f.journal, f.storageClass), ledger: vol(f.ledger, f.storageClass), reclaimPolicy: f.reclaim },
+        storage: { journal: vol(f.journal, f.journalStorageClass ?? f.storageClass), ledger: vol(f.ledger, f.ledgerStorageClass ?? f.storageClass), reclaimPolicy: f.reclaim },
       },
       broker: { replicas: +f.brokers },
       proxy: { enabled: f.proxy, replicas: 1, serviceType: f.proxyServiceType },

@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Keep the namespaces declared by each base. A namespace transformer here would
+# incorrectly move the storage API and agent into pulsar-operator-system.
+resources:
+  - ../../config/default
+  - ../../modules/storage/deploy
+  - ../console
+images:
+  - name: ghcr.io/songof/pulsar-operator
+    newName: pulsar-operator
+    newTag: dev
+  - name: diskfleet
+    newName: pulsar-operator-storage
+    newTag: dev
+patches:
+  # The unified management endpoint always requires a Pulsar console credential.
+  # Standalone upstream config/default retains its original optional setting.
+  - target:
+      kind: Deployment
+      name: pulsar-operator
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: pulsar-operator
+      spec:
+        template:
+          spec:
+            containers:
+              - name: operator
+                env:
+                  - name: CONSOLE_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: pulsar-operator-console
+                        key: token
+                        optional: false

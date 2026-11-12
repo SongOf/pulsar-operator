@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -21,7 +20,6 @@ import (
 	"github.com/SongOf/pulsar-operator/internal/console"
 	"github.com/SongOf/pulsar-operator/internal/controller"
 )
-
 func main() {
 	var consoleAddr, metricsAddr, probeAddr, webRoot string
 	var leaderElect bool
@@ -35,11 +33,9 @@ func main() {
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	log := ctrl.Log.WithName("setup")
-
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -61,7 +57,6 @@ func main() {
 	}
 	utilruntime.Must(mgr.AddHealthzCheck("healthz", healthz.Ping))
 	utilruntime.Must(mgr.AddReadyzCheck("readyz", healthz.Ping))
-
 	if consoleAddr != "" {
 		srv := &http.Server{
 			Addr:              consoleAddr,
@@ -72,7 +67,6 @@ func main() {
 		utilruntime.Must(mgr.Add(consoleRunnable{srv}))
 		log.Info("console enabled", "address", consoleAddr, "webRoot", webRoot, "tokenRequired", os.Getenv("CONSOLE_TOKEN") != "")
 	}
-
 	log.Info("starting the manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		log.Error(err, "running the manager")
@@ -83,7 +77,6 @@ func main() {
 type consoleRunnable struct{ srv *http.Server }
 
 func (c consoleRunnable) NeedLeaderElection() bool { return false }
-
 func (c consoleRunnable) Start(ctx context.Context) error {
 	errc := make(chan error, 1)
 	go func() { errc <- c.srv.ListenAndServe() }()

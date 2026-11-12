@@ -4,10 +4,9 @@ import { newPulsarCluster } from './model.js'
 
 const defaults = {
   name: '', namespace: 'pulsar', image: 'apachepulsar/pulsar:4.0.14',
-  zkReplicas: 3, zkSize: '5Gi', bookies: 3, minBookies: 3, journal: '10Gi', ledger: '50Gi', storageClass: '', reclaim: 'Retain',
+  zkReplicas: 3, zkSize: '5Gi', bookies: 3, minBookies: 3, journal: '10Gi', ledger: '50Gi', zkStorageClass: '', journalStorageClass: '', ledgerStorageClass: '', reclaim: 'Retain',
   brokers: 2, proxy: false, proxyServiceType: 'ClusterIP',
 }
-
 export function CreateDialog({ onClose, onCreated }) {
   const [f, setF] = useState(defaults)
   const [error, setError] = useState(null)
@@ -30,19 +29,20 @@ export function CreateDialog({ onClose, onCreated }) {
   return (
     <div className="overlay" onClick={onClose}>
       <form className="card dialog" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <h2>New Pulsar cluster</h2>
+        <h2>新建 Pulsar 集群</h2>
+        <p className="muted">控制器创建关联的 BookKeeper 集群；创建后，Broker 与 Bookie 在各自组件页面管理。</p>
         <div className="grid2">
           {field('name', 'Name', 'text', { required: true, pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?', autoFocus: true })}
           {field('namespace', 'Namespace (must exist)', 'text', { required: true })}
           {field('image', 'Image')}
-          {field('storageClass', 'StorageClass (empty = default)')}
         </div>
         <h4>ZooKeeper</h4>
-        <div className="grid2">{field('zkReplicas', 'Servers (odd, fixed)', 'number', { min: 1 })}{field('zkSize', 'Data volume')}</div>
+        <div className="grid2">{field('zkReplicas', 'Servers (odd, fixed)', 'number', { min: 1 })}{field('zkSize', 'Data volume')}{field('zkStorageClass', 'ZooKeeper StorageClass（空为默认）')}</div>
         <h4>BookKeeper</h4>
         <div className="grid2">
           {field('bookies', 'Bookies', 'number', { min: 1 })}{field('minBookies', 'Minimum bookies', 'number', { min: 0 })}
           {field('journal', 'Journal PVC')}{field('ledger', 'Ledger PVC')}
+          {field('journalStorageClass', 'Journal StorageClass（空为默认）')}{field('ledgerStorageClass', 'Ledger StorageClass（空为默认）')}
           <label>PVCs when the cluster is deleted<select value={f.reclaim} onChange={e => setF({ ...f, reclaim: e.target.value })}><option>Retain</option><option>Delete</option></select></label>
         </div>
         <h4>Brokers and proxy</h4>

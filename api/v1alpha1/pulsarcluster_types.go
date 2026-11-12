@@ -4,7 +4,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
 // ZooKeeperSpec configures the ZooKeeper ensemble that stores Pulsar and BookKeeper metadata.
 type ZooKeeperSpec struct {
 	ComponentSpec `json:",inline"`
@@ -17,7 +16,6 @@ type ZooKeeperSpec struct {
 	// Storage is the data volume of each ZooKeeper server.
 	Storage VolumeSpec `json:"storage"`
 }
-
 // BrokerSpec configures the Pulsar brokers.
 type BrokerSpec struct {
 	ComponentSpec `json:",inline"`
@@ -26,7 +24,6 @@ type BrokerSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	Replicas int32 `json:"replicas"`
 }
-
 // ProxySpec configures the optional Pulsar proxy, the entry point for clients outside the cluster.
 type ProxySpec struct {
 	ComponentSpec `json:",inline"`
@@ -41,7 +38,6 @@ type ProxySpec struct {
 	// +optional
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 }
-
 // PulsarClusterSpec defines a complete Pulsar cluster: ZooKeeper, BookKeeper, brokers and an optional proxy.
 type PulsarClusterSpec struct {
 	// Image is the default image of every component. Changing it upgrades the components one after another:
@@ -56,7 +52,6 @@ type PulsarClusterSpec struct {
 	// Paused stops reconciliation, for manual maintenance.
 	// +optional
 	Paused bool `json:"paused,omitempty"`
-
 	ZooKeeper ZooKeeperSpec `json:"zookeeper"`
 	// BookKeeper is managed through a child BookKeeperCluster with the same name; edit it here, not on the child.
 	BookKeeper BookKeeperSpec `json:"bookkeeper"`
@@ -67,7 +62,6 @@ type PulsarClusterSpec struct {
 	// +optional
 	Monitoring MonitoringSpec `json:"monitoring,omitempty"`
 }
-
 // PulsarClusterStatus is the observed state of a Pulsar cluster.
 type PulsarClusterStatus struct {
 	// +optional
@@ -95,7 +89,6 @@ type PulsarClusterStatus struct {
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
-
 // PulsarCluster is a Pulsar cluster managed by the operator.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -107,7 +100,6 @@ type PulsarClusterStatus struct {
 type PulsarCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
 	Spec   PulsarClusterSpec   `json:"spec,omitempty"`
 	Status PulsarClusterStatus `json:"status,omitempty"`
 }

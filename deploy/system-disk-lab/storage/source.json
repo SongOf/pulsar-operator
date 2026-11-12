@@ -1,0 +1,20 @@
+{
+  "upstream": "https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml",
+  "version": "v0.0.37",
+  "upstreamSHA256": "9781b39c24f3f651bd6d6e41b561e04e4904bbdb6d4f8c7a6009df3a702dcd65",
+  "localManifest": "local-path.yaml",
+  "scope": "two specified nodes, system filesystem directories only",
+  "hostDirectory": "/var/lib/pulsar-system-lab",
+  "storageClass": "pulsar-system-lab",
+  "provisioner": "pulsar.songof.dev/system-lab",
+  "modifications": [
+    "Independent namespace, RBAC names and provisioner identity",
+    "Exact nodePathMap without fallback",
+    "Narrow two-node selector and control-plane/master tolerations on controller and helper",
+    "Retain + WaitForFirstConsumer; not a default StorageClass; expansion disabled",
+    "Setup constrained to dedicated path, UID 10000/GID 0 and mode 0770",
+    "Automatic teardown disabled; manual data review is required",
+    "Pinned helper image and controller resource requests"
+  ],
+  "localManifestSHA256": "c862a08f83c6dd25c46864aa5cd94813e441a699e0b6c9ba454a41bc62b8292d"
+}

@@ -15,7 +15,6 @@ import (
 
 	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
 )
-
 // Component names, used in labels and object names.
 const (
 	ZooKeeper    = "zookeeper"
@@ -30,7 +29,6 @@ const (
 	AnnotationConfigHash  = "pulsar.songof.dev/config-hash"
 	AnnotationRestartedAt = "pulsar.songof.dev/restartedAt"
 )
-
 // Labels selects the pods of one component of one cluster.
 func Labels(cluster, component string) map[string]string {
 	return map[string]string{
@@ -43,7 +41,6 @@ func Labels(cluster, component string) map[string]string {
 
 // Name is the object name of a component of a cluster, such as demo-bookie.
 func Name(cluster, component string) string { return cluster + "-" + component }
-
 // PodFQDN is the stable DNS name of a StatefulSet pod behind its headless Service.
 func PodFQDN(pod, service, namespace, domain string) string {
 	return fmt.Sprintf("%s.%s.%s.svc.%s", pod, service, namespace, domainOr(domain))
@@ -55,7 +52,6 @@ func domainOr(domain string) string {
 	}
 	return domain
 }
-
 // ImageOf returns the component image, or the cluster image, or the default.
 func ImageOf(component, cluster string) string {
 	switch {
@@ -67,7 +63,6 @@ func ImageOf(component, cluster string) string {
 		return v1.DefaultImage
 	}
 }
-
 // JVMOptions renders PULSAR_MEM from a JVM spec, with the component's defaults for unset sizes.
 func JVMOptions(j v1.JVMSpec, defaultHeap, defaultDirect string) string {
 	heap, direct := j.Heap, j.DirectMemory
@@ -86,7 +81,6 @@ func JVMOptions(j v1.JVMSpec, defaultHeap, defaultDirect string) string {
 	}
 	return strings.Join(parts, " ")
 }
-
 // ConfigData merges the operator's defaults with the user's config into the environment the Pulsar image's
 // apply-config-from-env.py reads: every key becomes PULSAR_PREFIX_<key>, which adds or replaces it in the
 // configuration file. User entries win over defaults, except for keys the operator must own.
@@ -108,7 +102,6 @@ func ConfigData(defaults, user map[string]string, owned []string, env map[string
 	}
 	return data
 }
-
 // Hash is a short stable digest of a string map, used to restart pods when their configuration changes.
 func Hash(data map[string]string) string {
 	keys := make([]string, 0, len(data))
@@ -125,7 +118,6 @@ func Hash(data map[string]string) string {
 	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
-
 // ConfigMap holds a component's environment.
 func ConfigMap(name, namespace string, labels, data map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
@@ -133,13 +125,11 @@ func ConfigMap(name, namespace string, labels, data map[string]string) *corev1.C
 		Data:       data,
 	}
 }
-
 // metricsPorts are where each component serves Prometheus metrics, advertised with the conventional
 // prometheus.io annotations so any Prometheus discovers them.
 var metricsPorts = map[string][2]string{
 	Broker: {"8080", "/metrics/"}, Proxy: {"8080", "/metrics/"}, Bookie: {"8000", "/metrics"}, ZooKeeper: {"8000", "/metrics"},
 }
-
 // PodAnnotations are the template annotations: scrape hints, the user's, the config hash and the restart marker.
 func PodAnnotations(p v1.PodPolicy, configHash, restartedAt string, component ...string) map[string]string {
 	a := map[string]string{}
@@ -157,7 +147,6 @@ func PodAnnotations(p v1.PodPolicy, configHash, restartedAt string, component ..
 	}
 	return a
 }
-
 // Affinity spreads the pods matching labels across nodes as the mode asks.
 func Affinity(mode v1.AntiAffinityMode, labels map[string]string) *corev1.Affinity {
 	term := corev1.PodAffinityTerm{
@@ -177,7 +166,6 @@ func Affinity(mode v1.AntiAffinityMode, labels map[string]string) *corev1.Affini
 		}}
 	}
 }
-
 // PodSpec is the scheduling part every component shares. The Pulsar image runs as uid 10000 in group 0, so
 // volumes are made group-writable for group 0.
 func PodSpec(p v1.PodPolicy, labels map[string]string, grace int64) corev1.PodSpec {
@@ -193,7 +181,6 @@ func PodSpec(p v1.PodPolicy, labels map[string]string, grace int64) corev1.PodSp
 		},
 	}
 }
-
 // PodEnv exposes the pod's own name and namespace, from which the containers build their FQDN.
 func PodEnv() []corev1.EnvVar {
 	return []corev1.EnvVar{
@@ -201,7 +188,6 @@ func PodEnv() []corev1.EnvVar {
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 	}
 }
-
 // EnvFrom loads a component's ConfigMap into the container environment.
 func EnvFrom(configMap string) []corev1.EnvFromSource {
 	return []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: configMap}}}}
@@ -209,7 +195,6 @@ func EnvFrom(configMap string) []corev1.EnvFromSource {
 
 // Shell runs a script with bash, as the Pulsar image's helper scripts need.
 func Shell(script string) []string { return []string{"bash", "-c", script} }
-
 // HeadlessService gives every StatefulSet pod a stable DNS name, also before it is ready, so ZooKeeper quorum
 // members and bookies can resolve each other while starting.
 func HeadlessService(name, namespace string, labels map[string]string, ports []corev1.ServicePort) *corev1.Service {
@@ -223,7 +208,6 @@ func HeadlessService(name, namespace string, labels map[string]string, ports []c
 		},
 	}
 }
-
 // Port is a TCP service port.
 func Port(name string, port int32) corev1.ServicePort {
 	return corev1.ServicePort{Name: name, Port: port, Protocol: corev1.ProtocolTCP}

@@ -4,47 +4,53 @@ import { bookieRemoval, get, nest, problems, upgradePlan } from './model.js'
 import { ActionStatus, PhaseBadge, Ready, Section, useAction } from './ui.jsx'
 import { ConfigEditor } from './ConfigEditor.jsx'
 import { Monitoring } from './Monitoring.jsx'
-
 export function ClusterView({ view, onChanged, onDeleted }) {
-  const patch = spec => api.patch(view.kind, view.ns, view.name, spec)
+  const patch = (spec, expected = view.obj.metadata) => api.patch(view.kind, view.ns, view.name, spec, expected)
   const issues = problems(view.conditions)
+  const [tab, setTab] = useState('overview')
+  const tabs = [
+    ['overview', '组件状态'], ['monitoring', '监控'],
+    ...(!view.hideBookieStorage ? [['storage', 'Journal / Ledger']] : []),
+    ['configuration', '配置'], ['upgrade', '版本更新'], ['activity', 'Pod 与事件'],
+    ...(!view.deleteDisabled && !view.readOnly ? [['lifecycle', view.kind === 'PulsarCluster' ? 'Pulsar 集群操作' : '集群操作']] : []),
+  ]
+  const tabAvailable = tabs.some(([key]) => key === tab)
+  useEffect(() => { if (!tabAvailable) setTab('overview') }, [tabAvailable])
   return (
     <div className="cluster">
       <header className="cluster-head">
         <div>
-          <h1>{view.name}</h1>
-          <div className="muted">{view.kind} · namespace {view.ns}{view.paused && ' · reconciliation paused'}</div>
+          <h1>{view.displayName || view.name}</h1>
+          <div className="muted">{view.scope === 'bookie' ? 'BookKeeperCluster' : view.kind} · namespace {view.readTarget?.ns || view.ns}{view.paused && ' · reconciliation paused'}</div>
         </div>
         <PhaseBadge phase={view.phase} />
       </header>
-
       {issues.map(c => (
         <div key={c.source + c.type} className={'banner ' + (c.type === 'Ready' ? 'info' : 'warn')}>
           <b>{c.source} {c.type}: {c.reason}</b>{c.message && <> — {c.message}</>}
         </div>
       ))}
       {view.decommission && <Decommission d={view.decommission} />}
-
-      {view.serviceURL && (
+      {tab === 'overview' && view.serviceURL && (
         <div className="endpoints">
           <div><span className="muted">Service URL</span><code>{view.serviceURL}</code></div>
           <div><span className="muted">Admin URL</span><code>{view.webServiceURL}</code></div>
         </div>
       )}
-
-      <Monitoring view={view} patch={patch} onChanged={onChanged} />
-      <Components view={view} patch={patch} onChanged={onChanged} />
-      <Bookies view={view} />
-      <Storage view={view} patch={patch} onChanged={onChanged} />
-      <Configuration view={view} patch={patch} onChanged={onChanged} />
-      <Upgrade view={view} patch={patch} onChanged={onChanged} />
-      <Pods view={view} />
-      <Events view={view} />
-      <Danger view={view} onDeleted={onDeleted} />
+      <nav className="component-tabs" aria-label="组件详情">{tabs.map(([key, title]) => <button key={key} className={key === tab ? 'active' : ''} aria-current={key === tab ? 'page' : undefined} onClick={() => setTab(key)}>{title}</button>)}</nav>
+      {view.readOnly && <div className="banner warn read-only-message">此资源的所有权尚未确认，当前只读。核实父资源身份后再执行管理操作。</div>}
+      <div className="component-readonly"><fieldset disabled={view.readOnly}><div className="component-panels">
+        {tab === 'overview' && <><Components view={view} patch={patch} onChanged={onChanged} /><Bookies view={view} /></>}
+        {tab === 'monitoring' && <Monitoring view={view} patch={patch} onChanged={onChanged} />}
+        {tab === 'storage' && !view.hideBookieStorage && <><Storage view={view} patch={patch} onChanged={onChanged} /><Bookies view={view} /></>}
+        {tab === 'configuration' && <Configuration view={view} patch={patch} onChanged={onChanged} />}
+        {tab === 'upgrade' && <Upgrade view={view} patch={patch} onChanged={onChanged} />}
+        {tab === 'activity' && <><Pods view={view} /><Events view={view} /></>}
+        {tab === 'lifecycle' && !view.deleteDisabled && !view.readOnly && <Danger view={view} onDeleted={onDeleted} />}
+      </div></fieldset></div>
     </div>
   )
 }
-
 function Decommission({ d }) {
   const steps = ['Stopping', 'Replicating', 'Cleaning']
   return (
@@ -58,7 +64,6 @@ function Decommission({ d }) {
     </div>
   )
 }
-
 function Components({ view, patch, onChanged }) {
   return (
     <Section title="Components">
@@ -66,11 +71,10 @@ function Components({ view, patch, onChanged }) {
         <thead><tr><th>Component</th><th>Ready</th><th>Image</th><th>Scale</th><th></th></tr></thead>
         <tbody>{view.components.map(c => <ComponentRow key={c.key} c={c} view={view} patch={patch} onChanged={onChanged} />)}</tbody>
       </table>
-      {view.kind === 'PulsarCluster' && <ProxyToggle view={view} patch={patch} onChanged={onChanged} />}
+      {view.kind === 'PulsarCluster' && view.scope !== 'bookie' && <ProxyToggle view={view} patch={patch} onChanged={onChanged} />}
     </Section>
   )
 }
-
 function ComponentRow({ c, view, patch, onChanged }) {
   const [n, setN] = useState(c.desired)
   const [state, run] = useAction(onChanged)
@@ -94,14 +98,13 @@ function ComponentRow({ c, view, patch, onChanged }) {
       <td>
         {c.restart && (
           <button className="ghost" disabled={state.busy} onClick={() => {
-            if (confirm(`Rolling restart of ${c.label}?`)) run('Restart requested', () => api.restart(view.kind, view.ns, view.name, c.restart))
+            if (confirm(`Rolling restart of ${c.label}?`)) run('Restart requested', () => api.restart(view.kind, view.ns, view.name, c.restart, view.obj.metadata))
           }}>Restart</button>
         )}
       </td>
     </tr>
   )
 }
-
 // BookieScale adds bookies freely but removes them only one per action: each removal is a full decommission
 // (stop, re-replicate its ledgers, delete its PVCs), and the next can start only after it finished.
 function BookieScale({ c, view, patch, run, state }) {
@@ -129,7 +132,6 @@ function BookieScale({ c, view, patch, run, state }) {
     </div>
   )
 }
-
 function ProxyToggle({ view, patch, onChanged }) {
   const [state, run] = useAction(onChanged)
   const [type, setType] = useState(view.proxy.serviceType || 'ClusterIP')
@@ -150,7 +152,6 @@ function ProxyToggle({ view, patch, onChanged }) {
     </div>
   )
 }
-
 function Bookies({ view }) {
   if (!view.bookies.length) return null
   const vol = v => v?.capacity ? `${v.capacity}${v.requested && v.requested !== v.capacity ? ` → ${v.requested}` : ''}` : (v?.requested || '—')
@@ -172,7 +173,6 @@ function Bookies({ view }) {
     </Section>
   )
 }
-
 function Storage({ view, patch, onChanged }) {
   const s = view.storage || {}
   const [journal, setJournal] = useState(s.journal?.size || '')
@@ -200,7 +200,6 @@ function Storage({ view, patch, onChanged }) {
     </Section>
   )
 }
-
 function Configuration({ view, patch, onChanged }) {
   const editable = view.components.filter(c => c.configPath)
   const [tab, setTab] = useState(editable[0]?.key)
@@ -210,12 +209,14 @@ function Configuration({ view, patch, onChanged }) {
     <Section title="Configuration" actions={
       <div className="tabs">{editable.map(x => <button key={x.key} className={x.key === c.key ? 'tab active' : 'tab'} onClick={() => setTab(x.key)}>{x.label}</button>)}</div>
     }>
-      <ConfigEditor key={c.key} file={c.file} config={get(view.obj.spec, c.configPath) || {}}
-        onSave={next => patch(nest(c.configPath, next))} onChanged={onChanged} />
+      <ConfigEditor key={c.key} file={c.file} config={get(view.obj.spec, c.configPath) || {}} identity={view.obj.metadata}
+        onSave={async (next, expected) => {
+          const updated = await patch(nest(c.configPath, next), expected)
+          return { config: get(updated.spec, c.configPath) || {}, identity: updated.metadata }
+        }} onChanged={onChanged} />
     </Section>
   )
 }
-
 // Upgrade changes the cluster image, or one component's image, and shows the rollout in the order the operator
 // performs it.
 function Upgrade({ view, patch, onChanged }) {
@@ -224,28 +225,27 @@ function Upgrade({ view, patch, onChanged }) {
   useEffect(() => setImage(view.image || ''), [view.image])
   const plan = upgradePlan(view)
   const pulsar = view.kind === 'PulsarCluster'
+  const scopedBookie = view.scope === 'bookie'
   return (
     <Section title="Version and upgrade">
-      <form className="inline" onSubmit={e => {
+      {view.scope !== 'broker' && <form className="inline" onSubmit={e => {
         e.preventDefault()
-        const scope = pulsar ? 'every component without its own image (in order: ZooKeeper, bookies, brokers, proxy)' : 'the bookies and auto-recovery'
+        const scope = scopedBookie || !pulsar ? 'the bookies and auto-recovery' : 'every component without its own image (in order: ZooKeeper, bookies, brokers, proxy)'
         if (confirm(`Upgrade ${scope} to ${image}?`)) run('Upgrade started', () => patch(nest(view.imagePath, image)))
       }}>
-        <label className="grow">{pulsar ? 'Cluster image' : 'Image'}<input className="mono" value={image} onChange={e => setImage(e.target.value)} /></label>
-        <button className="primary" disabled={!image || image === view.image || state.busy}>Upgrade {pulsar ? 'cluster' : ''}</button>
+        <label className="grow">{scopedBookie ? 'Bookie image' : pulsar ? 'Cluster image' : 'Image'}<input className="mono" value={image} onChange={e => setImage(e.target.value)} /></label>
+        <button className="primary" disabled={!image || image === view.image || state.busy}>Upgrade {scopedBookie ? 'Bookie' : pulsar ? 'cluster' : ''}</button>
         <ActionStatus state={state} />
-      </form>
+      </form>}
       <table className="upgrade">
         <thead><tr><th>#</th><th>Component</th><th>Runs</th><th>Target</th><th>State</th>{pulsar && <th>Upgrade this component only</th>}</tr></thead>
         <tbody>{plan.map((c, i) => <UpgradeRow key={c.key} i={i + 1} c={c} pulsar={pulsar} patch={patch} onChanged={onChanged} />)}</tbody>
       </table>
-      {pulsar && <p className="muted small">The operator upgrades one component at a time in this order, each only after the previous one runs its target image on every pod and is ready. Inside a component, pods restart one by one. Auto-recovery follows the bookie image.</p>}
+      {pulsar && <p className="muted small">组件镜像可以分别设置。控制器仍按 ZooKeeper → Bookie → Broker → Proxy 的顺序协调更新；当前页面只显示本组组件，其他组件未就绪时可能需要等待。Auto-recovery 跟随 Bookie 镜像。</p>}
     </Section>
   )
 }
-
 const stateLabel = { current: 'Up to date', rolling: 'Rolling', waiting: 'Waiting', pending: 'Pending' }
-
 function UpgradeRow({ i, c, pulsar, patch, onChanged }) {
   const [image, setImage] = useState(c.override || '')
   const [state, run] = useAction(onChanged)
@@ -276,7 +276,6 @@ function UpgradeRow({ i, c, pulsar, patch, onChanged }) {
     </tr>
   )
 }
-
 function usePolled(fn, deps) {
   const [rows, setRows] = useState([])
   useEffect(() => {
@@ -288,9 +287,10 @@ function usePolled(fn, deps) {
   }, deps)
   return rows
 }
-
 function Pods({ view }) {
-  const pods = usePolled(() => api.pods(view.kind, view.ns, view.name), [view.kind, view.ns, view.name])
+  const target = view.readTarget || view
+  const records = usePolled(() => api.pods(target.kind, target.ns, target.name), [target.kind, target.ns, target.name])
+  const pods = view.scope ? records.filter(p => view.components.some(c => c.key === p.component)) : records
   return (
     <Section title={`Pods (${pods.length})`}>
       <table>
@@ -309,9 +309,9 @@ function Pods({ view }) {
     </Section>
   )
 }
-
 function Events({ view }) {
-  const events = usePolled(() => api.events(view.kind, view.ns, view.name), [view.kind, view.ns, view.name])
+  const target = view.readTarget || view
+  const events = usePolled(() => api.events(target.kind, target.ns, target.name), [target.kind, target.ns, target.name])
   if (!events.length) return null
   return (
     <Section title="Events">
@@ -325,15 +325,15 @@ function Events({ view }) {
     </Section>
   )
 }
-
 function Danger({ view, onDeleted }) {
   const [confirmName, setConfirmName] = useState('')
   const [state, run] = useAction(onDeleted)
-  const reclaim = view.storage?.reclaimPolicy || 'Retain'
+  const reclaim = (view.kind === 'PulsarCluster' ? view.obj.spec.bookkeeper?.storage?.reclaimPolicy : view.storage?.reclaimPolicy) || 'Retain'
   return (
-    <Section title="Delete cluster">
+    <Section title={view.kind === 'PulsarCluster' ? '删除整个 Pulsar 集群' : 'Delete BookKeeper cluster'}>
+      {view.kind === 'PulsarCluster' && <p className="warn-text">此操作删除 Pulsar 集群的 ZooKeeper、BookKeeper、Broker 和 Proxy，不是仅删除 Broker 组件。</p>}
       <p className="muted small">Deletes every workload of the cluster. Bookie PVCs are {reclaim === 'Delete' ? <b>deleted with their data</b> : 'kept (reclaim policy Retain)'}.</p>
-      <form className="inline" onSubmit={e => { e.preventDefault(); run('Deleted', () => api.remove(view.kind, view.ns, view.name)) }}>
+      <form className="inline" onSubmit={e => { e.preventDefault(); run('Deleted', () => api.remove(view.kind, view.ns, view.name, view.obj.metadata)) }}>
         <input placeholder={`type ${view.name} to confirm`} value={confirmName} onChange={e => setConfirmName(e.target.value)} />
         <button className="danger" disabled={confirmName !== view.name || state.busy}>Delete</button>
         <ActionStatus state={state} />

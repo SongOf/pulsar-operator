@@ -1,0 +1,586 @@
+{
+  "repository": "https://github.com/SongOf/pulsar-operator",
+  "revision": "3c042c5",
+  "fullCommitSHA": "3c042c57a79e83cd3f329c7088a65e2bc65a62af",
+  "importedAt": "2026-11-13",
+  "method": "Raw source via connected remote reader; every numbered line checked. LF with final newline. This is a source snapshot, not a Git clone; imported hashes describe captured content, not upstream Git blobs.",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "localPath": ".github/workflows/ci.yml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/.github/workflows/ci.yml",
+      "lineCount": 46,
+      "importedSha256": "27ea1421cdb35d9a5f13a19ab4b73e4426c97dca53bedad8a3027e7d7f2b10df"
+    },
+    {
+      "path": ".gitignore",
+      "localPath": ".gitignore",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/.gitignore",
+      "lineCount": 4,
+      "importedSha256": "c5a08818db373ce0afe0b35817fa43b4b950d4f373d87239d0c76ee23448d1f9"
+    },
+    {
+      "path": "Dockerfile",
+      "localPath": "Dockerfile",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/Dockerfile",
+      "lineCount": 23,
+      "importedSha256": "b2d911abe160a945e2e083d02cf425e3642d73b3d025ffd21d4c1e3b18b48bca"
+    },
+    {
+      "path": "Makefile",
+      "localPath": "Makefile",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/Makefile",
+      "lineCount": 30,
+      "importedSha256": "a93b0b86fa799874edb53ec98074d047127259b0f813623e29ab068ec76dcd6c"
+    },
+    {
+      "path": "README.md",
+      "localPath": "docs/upstream-readme.md",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/README.md",
+      "lineCount": 70,
+      "importedSha256": "bd9adf5a84224fd612bcb5ba38a97e21de05bc5a7197bb48b45f353aea95433e"
+    },
+    {
+      "path": "api/v1alpha1/bookkeepercluster_types.go",
+      "localPath": "api/v1alpha1/bookkeepercluster_types.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/bookkeepercluster_types.go",
+      "lineCount": 151,
+      "importedSha256": "0ef9fd5f91152f225e36b0de1eef940c98934ce87f2f9be031428c62d88a5fd3"
+    },
+    {
+      "path": "api/v1alpha1/common_types.go",
+      "localPath": "api/v1alpha1/common_types.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/common_types.go",
+      "lineCount": 170,
+      "importedSha256": "2fe336d98b03b89c97ebd764c128c8f7d4f2a4d048e333f3145737a13d1fe62a"
+    },
+    {
+      "path": "api/v1alpha1/groupversion_info.go",
+      "localPath": "api/v1alpha1/groupversion_info.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/groupversion_info.go",
+      "lineCount": 19,
+      "importedSha256": "0b5053878ac4ca702acbd7e6ff80d170568ee2197180b833b1a9a21b78d59733"
+    },
+    {
+      "path": "api/v1alpha1/pulsarcluster_types.go",
+      "localPath": "api/v1alpha1/pulsarcluster_types.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/pulsarcluster_types.go",
+      "lineCount": 117,
+      "importedSha256": "cf75b98a969371f35677f32b4b60441657b021da6f1d0814785447d8fd1becad"
+    },
+    {
+      "path": "api/v1alpha1/zz_generated.deepcopy.go",
+      "localPath": "api/v1alpha1/zz_generated.deepcopy.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/api/v1alpha1/zz_generated.deepcopy.go",
+      "lineCount": 527,
+      "importedSha256": "c97f502766aa3213b04994feaf1015c2376c9ecea1340916c6cc3b70cd2e0085"
+    },
+    {
+      "path": "cmd/operator/main.go",
+      "localPath": "cmd/operator/main.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/cmd/operator/main.go",
+      "lineCount": 101,
+      "importedSha256": "c051fc2722831dadffb3f363f1ed2ba864e6f5318a0eceff292dedf05f22e93a"
+    },
+    {
+      "path": "config/crd/kustomization.yaml",
+      "localPath": "config/crd/kustomization.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/crd/kustomization.yaml",
+      "lineCount": 5,
+      "importedSha256": "7991a188393e328f4bc8a9f5d5c89647756710801041dabc93497bd59e869ca0"
+    },
+    {
+      "path": "config/crd/pulsar.songof.dev_bookkeeperclusters.yaml",
+      "localPath": "config/crd/pulsar.songof.dev_bookkeeperclusters.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/crd/pulsar.songof.dev_bookkeeperclusters.yaml",
+      "lineCount": 816,
+      "importedSha256": "b18a45fc83903f00a6a92478510b45dc6368478f27567d590f03e64771d98a70"
+    },
+    {
+      "path": "config/crd/pulsar.songof.dev_pulsarclusters.yaml",
+      "localPath": "config/crd/pulsar.songof.dev_pulsarclusters.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/crd/pulsar.songof.dev_pulsarclusters.yaml",
+      "lineCount": 1320,
+      "importedSha256": "8efc69559928b1e0d154b1ca731a50d2c39ed989f87de049d022eef41144831e"
+    },
+    {
+      "path": "config/default/kustomization.yaml",
+      "localPath": "config/default/kustomization.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/default/kustomization.yaml",
+      "lineCount": 7,
+      "importedSha256": "489967867156abc8c82fe5eedbcc20e475293b114b4b458fae2592b0f40dcd32"
+    },
+    {
+      "path": "config/manager/kustomization.yaml",
+      "localPath": "config/manager/kustomization.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/manager/kustomization.yaml",
+      "lineCount": 4,
+      "importedSha256": "06bc0338d0a2adb79434663b9b4e4dd589e99d6999a2ca9fa38c8c34e5ea7eaf"
+    },
+    {
+      "path": "config/manager/manager.yaml",
+      "localPath": "config/manager/manager.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/manager/manager.yaml",
+      "lineCount": 90,
+      "importedSha256": "4f0adb3a88e81b382ed14fbaa0eb4df37913aae26185928a9dff065f3788c4b3"
+    },
+    {
+      "path": "config/monitoring/podmonitor.yaml",
+      "localPath": "config/monitoring/podmonitor.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/monitoring/podmonitor.yaml",
+      "lineCount": 32,
+      "importedSha256": "9d19c8d282e646096312038156728de5e9ed888de9a65b619fe3c082c0448900"
+    },
+    {
+      "path": "config/rbac/kustomization.yaml",
+      "localPath": "config/rbac/kustomization.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/rbac/kustomization.yaml",
+      "lineCount": 4,
+      "importedSha256": "705694e95cbebf6b68d1005f3ab377cc4ad108a5148427a8bb2ca62d1960a86b"
+    },
+    {
+      "path": "config/rbac/role.yaml",
+      "localPath": "config/rbac/role.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/rbac/role.yaml",
+      "lineCount": 147,
+      "importedSha256": "d6b0a3873c71bc456d8dacd90f4e0912db43c6baeb18f8b20709134ac83670c5"
+    },
+    {
+      "path": "config/samples/bookkeepercluster.yaml",
+      "localPath": "config/samples/bookkeepercluster.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/samples/bookkeepercluster.yaml",
+      "lineCount": 20,
+      "importedSha256": "f1808aa80e3f9c11fa6610a8b6e29274cf903b06c76c45150ffa6389670a4888"
+    },
+    {
+      "path": "config/samples/pulsarcluster.yaml",
+      "localPath": "config/samples/pulsarcluster.yaml",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/config/samples/pulsarcluster.yaml",
+      "lineCount": 60,
+      "importedSha256": "11f1e687d23d9e1825c3ef09728e9a0d319e999f7a6217786aaa99cb7c608061"
+    },
+    {
+      "path": "docs/operator-scope.md",
+      "localPath": "docs/operator-scope.md",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/docs/operator-scope.md",
+      "lineCount": 119,
+      "importedSha256": "ceb7aa05cda5576a4265345213d2be62eb1c4cb4088817007220ed27e689e785"
+    },
+    {
+      "path": "go.mod",
+      "localPath": "go.mod",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/go.mod",
+      "lineCount": 71,
+      "importedSha256": "bb80f778a9301cb443220365779e1fbe0e6c42c61ce23784627ad2cd975d9104"
+    },
+    {
+      "path": "go.sum",
+      "localPath": "go.sum",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/go.sum",
+      "lineCount": 183,
+      "importedSha256": "b47d5fc38400a0da9a7fbfdb4e71b40bb8aa4bd467d18807721ea65eb5c2273c"
+    },
+    {
+      "path": "internal/console/server.go",
+      "localPath": "internal/console/server.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/console/server.go",
+      "lineCount": 433,
+      "importedSha256": "96ead4a9336c2309d20cd9dd3e1461eb9d9f6a07a15f5f9a5550f181d96eca95"
+    },
+    {
+      "path": "internal/console/server_test.go",
+      "localPath": "internal/console/server_test.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/console/server_test.go",
+      "lineCount": 150,
+      "importedSha256": "5df478237526a60753a49a108abe6700865bb14be2ecc56922fd3ae8ac00a512"
+    },
+    {
+      "path": "internal/controller/apply.go",
+      "localPath": "internal/controller/apply.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/apply.go",
+      "lineCount": 218,
+      "importedSha256": "84f445ac23d3af2d080e1834b31d60b9eddf687464debea13b9a9a54f038bfa3"
+    },
+    {
+      "path": "internal/controller/bookkeeper_controller.go",
+      "localPath": "internal/controller/bookkeeper_controller.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/bookkeeper_controller.go",
+      "lineCount": 482,
+      "importedSha256": "625f5c30cd16663ad99c7759c87a29962df740b4fec201adb53d033c82329ae6"
+    },
+    {
+      "path": "internal/controller/bookkeeper_controller_test.go",
+      "localPath": "internal/controller/bookkeeper_controller_test.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/bookkeeper_controller_test.go",
+      "lineCount": 317,
+      "importedSha256": "3a6a38aecdd92e335601b78402f8f28c0ae6994ecd76e7ca0f64df3a988ee65c"
+    },
+    {
+      "path": "internal/controller/monitoring.go",
+      "localPath": "internal/controller/monitoring.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/monitoring.go",
+      "lineCount": 72,
+      "importedSha256": "a4571d98cbff8b756319615e66fedc757e1b1c32664a8d54c4c84edbd2e5040f"
+    },
+    {
+      "path": "internal/controller/pulsar_controller.go",
+      "localPath": "internal/controller/pulsar_controller.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/pulsar_controller.go",
+      "lineCount": 281,
+      "importedSha256": "8f7affe88434cda8f0ad2015eda73d80219685d21d6c8329885a7321467be9c9"
+    },
+    {
+      "path": "internal/controller/pulsar_controller_test.go",
+      "localPath": "internal/controller/pulsar_controller_test.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/pulsar_controller_test.go",
+      "lineCount": 279,
+      "importedSha256": "a423027d35fc036829f504f51cfe18cc9c7f12a07358724c1d039f0570e212b1"
+    },
+    {
+      "path": "internal/controller/suite_test.go",
+      "localPath": "internal/controller/suite_test.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/controller/suite_test.go",
+      "lineCount": 198,
+      "importedSha256": "e2f94ed4a393d13b140c2dd5c2f9c645f4b6e760bbd0d8faa6034adc297e619a"
+    },
+    {
+      "path": "internal/metrics/dashboard.go",
+      "localPath": "internal/metrics/dashboard.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/metrics/dashboard.go",
+      "lineCount": 217,
+      "importedSha256": "fceb610556a724059e1e6ec9695c178578d444e229cd7f3a5dd8ec5404fdfa43"
+    },
+    {
+      "path": "internal/metrics/metrics_test.go",
+      "localPath": "internal/metrics/metrics_test.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/metrics/metrics_test.go",
+      "lineCount": 134,
+      "importedSha256": "f1df0bceb427a92f9e252312ad3c3cd062d6f922ddcd95f75acf1c5e05014575"
+    },
+    {
+      "path": "internal/metrics/prometheus.go",
+      "localPath": "internal/metrics/prometheus.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/metrics/prometheus.go",
+      "lineCount": 110,
+      "importedSha256": "296318a24fa0c8f75b401651e50cdecdd9d3d6ec2ec9051da99b00fbce2f8b6e"
+    },
+    {
+      "path": "internal/resources/bookkeeper.go",
+      "localPath": "internal/resources/bookkeeper.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/resources/bookkeeper.go",
+      "lineCount": 259,
+      "importedSha256": "6401597e4ea9f403893638e3cae0f95a65aa53931ba7be4c30e1fb520e6dbd34"
+    },
+    {
+      "path": "internal/resources/common.go",
+      "localPath": "internal/resources/common.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/resources/common.go",
+      "lineCount": 223,
+      "importedSha256": "a1a8658cbbeec731506cab4601f32f5587e62e134e7ac6d27cdf2c9e81791a8b"
+    },
+    {
+      "path": "internal/resources/monitoring.go",
+      "localPath": "internal/resources/monitoring.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/resources/monitoring.go",
+      "lineCount": 242,
+      "importedSha256": "8171ead4c183dffef87840bb64833c0a8e381b8372a62fc80841991de68b8f71"
+    },
+    {
+      "path": "internal/resources/pulsar.go",
+      "localPath": "internal/resources/pulsar.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/resources/pulsar.go",
+      "lineCount": 295,
+      "importedSha256": "5981430790bfd6440c23320ee85629ce2ca7906fb34001c2ea5dfb3cd283d20a"
+    },
+    {
+      "path": "internal/resources/resources_test.go",
+      "localPath": "internal/resources/resources_test.go",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/internal/resources/resources_test.go",
+      "lineCount": 251,
+      "importedSha256": "f0b997fb99c68d145344fc858975f43a705a95098043ea232ec8a02654dd292f"
+    },
+    {
+      "path": "test/e2e/e2e.sh",
+      "localPath": "test/e2e/e2e.sh",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/test/e2e/e2e.sh",
+      "lineCount": 72,
+      "importedSha256": "d0d5fb56cba0b293fb4594589b878eb2481fc3d978c190dfbdb622b165a7686d"
+    },
+    {
+      "path": "web/index.html",
+      "localPath": "web/index.html",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/index.html",
+      "lineCount": 12,
+      "importedSha256": "6b48811951990b5fe399f78bfc2d8cf7543bf270cbdfff77ff9e5165cfc1cf2b"
+    },
+    {
+      "path": "web/package-lock.json",
+      "localPath": "web/package-lock.json",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/package-lock.json",
+      "lineCount": 1830,
+      "importedSha256": "b3afd7d5cedabc1ae7a9e03a8324631b4f722bd5d3b179509c99915fda8e3826"
+    },
+    {
+      "path": "web/package.json",
+      "localPath": "web/package.json",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/package.json",
+      "lineCount": 19,
+      "importedSha256": "7ef36ce0a4946d7cda0f1752d492c50b9895051487187b2bc7c202ec0d04bb6c"
+    },
+    {
+      "path": "web/src/App.jsx",
+      "localPath": "web/src/App.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/App.jsx",
+      "lineCount": 75,
+      "importedSha256": "40d4921fd690b0cd19b63bad5838ade962f60bd21a08f6eff51871ec7e252313"
+    },
+    {
+      "path": "web/src/ClusterView.jsx",
+      "localPath": "web/src/ClusterView.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/ClusterView.jsx",
+      "lineCount": 324,
+      "importedSha256": "e4e1a58837d056cf7a0580d47054d55e88da075f7a5ce5d4bd854a8c6923fbda"
+    },
+    {
+      "path": "web/src/ConfigEditor.jsx",
+      "localPath": "web/src/ConfigEditor.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/ConfigEditor.jsx",
+      "lineCount": 40,
+      "importedSha256": "bc726214f3fa971c273b18c7ecfec6f405d3dac18b7bbc301fa5e6eee80ef16c"
+    },
+    {
+      "path": "web/src/CreateDialog.jsx",
+      "localPath": "web/src/CreateDialog.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/CreateDialog.jsx",
+      "lineCount": 61,
+      "importedSha256": "5c175705e75c86af9f556ff7e0a777146961ca943d4d2d4f495927dd2a275e1b"
+    },
+    {
+      "path": "web/src/Monitoring.jsx",
+      "localPath": "web/src/Monitoring.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/Monitoring.jsx",
+      "lineCount": 116,
+      "importedSha256": "d2c1d8cb2b4052de923ba131b55b9b3fc6e2b8f1dce38173b5e70ddf671f8259"
+    },
+    {
+      "path": "web/src/api.js",
+      "localPath": "web/src/api.js",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/api.js",
+      "lineCount": 44,
+      "importedSha256": "3c843a7f1a12c1e3a6a68fde0a7a9cc9694e2382322c3acc3d00be56065aaf29"
+    },
+    {
+      "path": "web/src/charts.jsx",
+      "localPath": "web/src/charts.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/charts.jsx",
+      "lineCount": 162,
+      "importedSha256": "87bedb3cb4ff6aea65dd43f92d859aff6481af561926f15b235f465a980439a6"
+    },
+    {
+      "path": "web/src/main.jsx",
+      "localPath": "web/src/main.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/main.jsx",
+      "lineCount": 8,
+      "importedSha256": "4c1d04826bd9c2e190af7a66a7474e623b643335d01ac352a4a87be60f3c4fcf"
+    },
+    {
+      "path": "web/src/model.js",
+      "localPath": "web/src/model.js",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/model.js",
+      "lineCount": 111,
+      "importedSha256": "151567a6cc3ca84bc98836e2b644a9406217d6ff44348c666652e397f7d01cdb"
+    },
+    {
+      "path": "web/src/model.test.js",
+      "localPath": "web/src/model.test.js",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/model.test.js",
+      "lineCount": 78,
+      "importedSha256": "2f2c2cf6c343543bcb7ccd704398b2fe4f0728adbe1d85bf2f73cfa21a554e93"
+    },
+    {
+      "path": "web/src/styles.css",
+      "localPath": "web/src/styles.css",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/styles.css",
+      "lineCount": 119,
+      "importedSha256": "61fca5fbfda688272eaab672c49a8af873c6b3e57c785c314f7964ba4bca5807"
+    },
+    {
+      "path": "web/src/ui.jsx",
+      "localPath": "web/src/ui.jsx",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/src/ui.jsx",
+      "lineCount": 43,
+      "importedSha256": "efd5efa0dbc93b3406e73a040be9f66d34b8c2d8bdfa55afc5a03b7dc505e15b"
+    },
+    {
+      "path": "web/vite.config.js",
+      "localPath": "web/vite.config.js",
+      "url": "https://raw.githubusercontent.com/SongOf/pulsar-operator/3c042c5/web/vite.config.js",
+      "lineCount": 8,
+      "importedSha256": "b2375bf4d06dab551d1dd73c678fc029cd64bdac73da32ee9fcfe72043cad686"
+    }
+  ],
+  "localModifications": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "reason": "Validate both modules and build both images without publishing",
+      "currentSha256": "2c38c98b231845ff2563bb22b05239ea79d50ee56e4cfbbef4f85049ad05b5ef"
+    },
+    {
+      "path": ".gitignore",
+      "reason": "Ignore local storage state, caches and credentials",
+      "currentSha256": "4824b3bccf3b94a53078cc1cd706d0ba1f1da1731ccffaf5e164e8e4c1e11044"
+    },
+    {
+      "path": "Makefile",
+      "reason": "Unified build, test, deployment and integration entrypoints",
+      "currentSha256": "2aec5e4f619b7a320d35e623bd54b41686bd60625609ef9c760beaca38164d4d"
+    },
+    {
+      "path": "README.md",
+      "reason": "Relocated upstream introduction with corrected current authentication guidance",
+      "currentSha256": "3c8d1a28c07ae58c5ee1d74ce4c0707a875b2d4b4c74b0a4dfde9b622b5b2d80"
+    },
+    {
+      "path": "api/v1alpha1/bookkeepercluster_types.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "d5f1c5c28e8d9e50b61ff3a01ec4714825b8d41680a8cac034e4cacfdba05db8"
+    },
+    {
+      "path": "api/v1alpha1/common_types.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "07521435a6676f2d63c921cc7ee52dbbabdba844a147ba2372289fbe9016e1b7"
+    },
+    {
+      "path": "api/v1alpha1/zz_generated.deepcopy.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "02645861ac0363da49c5fdfa8f46c277a5a0ee04aaf7d5107db8322690459496"
+    },
+    {
+      "path": "config/crd/pulsar.songof.dev_bookkeeperclusters.yaml",
+      "reason": "Review fixes: durable lifecycle and recreation checkpoints, strict resource ownership and storage validation with regression coverage",
+      "currentSha256": "6a3a26977b968ea1dae2c6ce7ed235b5d7a55d841c1a690041836055c5388f81"
+    },
+    {
+      "path": "config/crd/pulsar.songof.dev_pulsarclusters.yaml",
+      "reason": "Review fixes: durable lifecycle and recreation checkpoints, strict resource ownership and storage validation with regression coverage",
+      "currentSha256": "91f91efa7a619227608d02e87d5522aa4fbc3f7d476883ba415af8a845fbdce1"
+    },
+    {
+      "path": "docs/operator-scope.md",
+      "reason": "Clarify BookKeeper-only online expansion and actual verification scope",
+      "currentSha256": "c80706ed49b4d3912b0cacadcd20ecb60b2448043cb501ff27110a6ba845a413"
+    },
+    {
+      "path": "internal/console/server.go",
+      "reason": "Review fixes: pinned edit baselines, atomic UID/version write preconditions and query-token retirement, with regression coverage",
+      "currentSha256": "2e121a7b7b54dae9cc6fd17321f69b81c56f8702870a071cbc62b4cd0b5844d0"
+    },
+    {
+      "path": "internal/console/server_test.go",
+      "reason": "Review fixes: pinned edit baselines, atomic UID/version write preconditions and query-token retirement, with regression coverage",
+      "currentSha256": "45d5781d2c99c0a33e4e05fd92a79bffc1168269660f166e345ece69445715a7"
+    },
+    {
+      "path": "internal/controller/apply.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "c553f5c3a905cdec70d3bac320ca9d51529f39ced6f972cee339feaaf6e06f98"
+    },
+    {
+      "path": "internal/controller/bookkeeper_controller.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "675e643cef2b27dadeed2dcd30659e3216ca7ddfca53efd65124276d4375bc6b"
+    },
+    {
+      "path": "internal/controller/bookkeeper_controller_test.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "82c3d74f98cfb273cf947f260707913b31b48be9ccaf187768bfe986686e3312"
+    },
+    {
+      "path": "internal/controller/monitoring.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "89d26f7262edfd0f13cccf2e86000d44e4e76224fc731f8803f043abda310cbf"
+    },
+    {
+      "path": "internal/controller/pulsar_controller.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "ac089ca2cacc86b09dfce84bc355e147536b5805798436a237709653fb28792e"
+    },
+    {
+      "path": "internal/controller/suite_test.go",
+      "reason": "Review fixes: durable lifecycle checkpoints, strict resource ownership, storage change validation and regression coverage",
+      "currentSha256": "bc02e7d2f5f59af2e25eaea6f4afc071d83521484d33cee8705fab9023027b64"
+    },
+    {
+      "path": "test/e2e/e2e.sh",
+      "reason": "Authenticated lifecycle preflight and UID/version guarded console writes",
+      "currentSha256": "7342053899867ec4fdc7400a333a86c9f746808afe806957507e2147f442e25d"
+    },
+    {
+      "path": "web/package.json",
+      "reason": "Run all component model test files",
+      "currentSha256": "4f3b18f1710123330c55f9d2cae0f03739c3db0f516fcdb1c12efb64d8e2c540"
+    },
+    {
+      "path": "web/src/App.jsx",
+      "reason": "Unified console shell entrypoint",
+      "currentSha256": "f358460206cd28edbbc9a359b7b53226c3ee0d25f880d9b7e44b1310cd6ea9dd"
+    },
+    {
+      "path": "web/src/ClusterView.jsx",
+      "reason": "Review fixes: pinned edit baselines, atomic UID/version write preconditions and query-token retirement, with regression coverage",
+      "currentSha256": "359f21b28183a5573ac4aa6410f0439bb2344d885521fc0767ccde932a6849a4"
+    },
+    {
+      "path": "web/src/ConfigEditor.jsx",
+      "reason": "Review fixes: pinned edit baselines, atomic UID/version write preconditions and query-token retirement, with regression coverage",
+      "currentSha256": "07e68af886c6d76c771d4bd44a217215f610ac0c0d9fc94b9daecaf4e00eb113"
+    },
+    {
+      "path": "web/src/CreateDialog.jsx",
+      "reason": "Independent storage classes for ZooKeeper, journal and ledger",
+      "currentSha256": "8940166d24fb6ff9d35f9dc343b3c8d5396dee82a8559bfb320fc04c96c0f81f"
+    },
+    {
+      "path": "web/src/Monitoring.jsx",
+      "reason": "Show component-specific metrics while reusing parent Prometheus",
+      "currentSha256": "c14283ce38912185a11a56245b74f417cd75b0a92355578f5e73fbb2cf97d5ba"
+    },
+    {
+      "path": "web/src/api.js",
+      "reason": "Review fixes: pinned edit baselines, atomic UID/version write preconditions and query-token retirement, with regression coverage",
+      "currentSha256": "c69357fb23c87e308bbd205a5edc138b93ecd96dd49891252cfb712c89a415a3"
+    },
+    {
+      "path": "web/src/main.jsx",
+      "reason": "Load unified layout styles after base styles",
+      "currentSha256": "47dbc824368520f13fed5d4f114bb9ae5b346d00c5b86845d7cf073c6d3b7b4b"
+    },
+    {
+      "path": "web/src/model.js",
+      "reason": "Map role-specific storage classes with legacy fallback",
+      "currentSha256": "8d0583a9a2d743c276da1480751e3db0edfad337bd61e836c45f9e76f2a097ba"
+    },
+    {
+      "path": "web/src/model.test.js",
+      "reason": "Validate role-specific volume classes",
+      "currentSha256": "151c3534a7f6594b7016ac3913a9ccf2f6d6803371788d1a4c764467e92a4ea3"
+    },
+    {
+      "path": "web/src/styles.css",
+      "reason": "Style unified navigation",
+      "currentSha256": "ce8cc26a86de88562ae0cc93bcbae3738ff5421ad0a5c3aedf946c96af7b95ae"
+    },
+    {
+      "path": "web/src/ui.jsx",
+      "reason": "Review fixes: pinned edit baselines, atomic UID/version write preconditions and query-token retirement, with regression coverage",
+      "currentSha256": "e08048adc0c3068a974b62cf898ac90cc8d004ac4f4bd32503e7019ed99a0b6d"
+    },
+    {
+      "path": "web/vite.config.js",
+      "reason": "Local storage service proxy for embedded console",
+      "currentSha256": "a88ef9c61ee9437184ee2126338c1c0aa125d4bf073d956080e5c56c2ddd3d18"
+    }
+  ],
+  "gitHistoryRecoveredAt": "2026-11-13",
+  "gitVerification": "Fetched origin/main and retained actual history for integration/storage-console; captured hashes remain original reader-normalized content, not Git blob hashes."
+}

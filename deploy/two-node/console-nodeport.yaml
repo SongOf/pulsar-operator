@@ -1,0 +1,21 @@
+# Optional lab entry point for access through the private node addresses.
+# Apply explicitly; this Service is not part of the default Kustomization.
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-gateway-lab
+  namespace: pulsar-operator-system
+  labels:
+    app.kubernetes.io/name: console-gateway
+    app.kubernetes.io/part-of: pulsar-operator
+spec:
+  type: NodePort
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: console-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+      nodePort: 30080

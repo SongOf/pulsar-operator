@@ -1,0 +1,26 @@
+{
+  "exampleOnly": true,
+  "description": "OFFLINE FICTIONAL INVENTORY ONLY. Ready states, UIDs, node names, hostnames, VG names and free capacities are examples, not evidence of real initialization. two-node-shared-disk-lab requires the same two pools for ZooKeeper/journal/ledger and >=94Gi actual free space per pool. One data disk per node provides no physical role isolation, no host-failure HA, and cannot run the original three-node E2E. Never apply a manifest generated from this fixture to the real cluster.",
+  "items": [
+    {
+      "id": "shared-lab-a",
+      "uid": "EXAMPLE-ONLY-UID-shared-lab-a",
+      "node": "example-lab-node-a",
+      "vgName": "df_example_shared_a",
+      "topologyHostname": "example-host-a",
+      "state": "Ready",
+      "capacityBytes": 107374182400,
+      "availableBytes": 107369988096
+    },
+    {
+      "id": "shared-lab-b",
+      "uid": "EXAMPLE-ONLY-UID-shared-lab-b",
+      "node": "example-lab-node-b",
+      "vgName": "df_example_shared_b",
+      "topologyHostname": "example-host-b",
+      "state": "Ready",
+      "capacityBytes": 107374182400,
+      "availableBytes": 107369988096
+    }
+  ]
+}

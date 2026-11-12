@@ -1,0 +1,121 @@
+# Functional lab only: directories on the two nodes' system filesystems.
+# The pulsar-system-lab StorageClass must use WaitForFirstConsumer and Retain.
+# PVC sizes below are requests; local-path does not enforce directory quotas.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: diskfleet-pulsar-system-lab
+  labels:
+    pulsar.songof.dev/deployment-profile: system-disk-lab
+---
+apiVersion: pulsar.songof.dev/v1alpha1
+kind: PulsarCluster
+metadata:
+  name: pulsar-lab
+  namespace: diskfleet-pulsar-system-lab
+  labels:
+    pulsar.songof.dev/deployment-profile: system-disk-lab
+  annotations:
+    pulsar.songof.dev/storage-backend: system-filesystem-directories
+    pulsar.songof.dev/validation-scope: functional-lab-no-physical-disk-or-csi-validation
+    pulsar.songof.dev/availability: no-host-failure-ha
+spec:
+  image: apachepulsar/pulsar:4.0.14
+  zookeeper:
+    replicas: 3
+    storage:
+      size: 1Gi
+      storageClassName: pulsar-system-lab
+    jvm:
+      heap: 512m
+    resources:
+      requests: {cpu: 200m, memory: 1Gi}
+      limits: {memory: 2Gi}
+    pod:
+      antiAffinity: Preferred
+      nodeSelector:
+        pulsar.songof.dev/two-node: "true"
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+        - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+  bookkeeper:
+    replicas: 3
+    minReplicas: 3
+    storage:
+      journal:
+        size: 1Gi
+        storageClassName: pulsar-system-lab
+      ledger:
+        size: 5Gi
+        storageClassName: pulsar-system-lab
+      reclaimPolicy: Retain
+    jvm:
+      heap: 1g
+      directMemory: 1g
+    resources:
+      requests: {cpu: 500m, memory: 3Gi}
+      limits: {memory: 4Gi}
+    config:
+      diskUsageThreshold: "0.90"
+      diskUsageLwmThreshold: "0.85"
+    pod:
+      antiAffinity: Preferred
+      nodeSelector:
+        pulsar.songof.dev/two-node: "true"
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+        - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+    autoRecovery:
+      enabled: true
+      replicas: 1
+      jvm:
+        heap: 256m
+        directMemory: 256m
+      resources:
+        requests: {cpu: 100m, memory: 1Gi}
+        limits: {memory: 2Gi}
+      pod:
+        antiAffinity: Preferred
+        nodeSelector:
+          pulsar.songof.dev/two-node: "true"
+        tolerations:
+          - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+          - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+  broker:
+    replicas: 2
+    jvm:
+      heap: 1g
+      directMemory: 1g
+    resources:
+      requests: {cpu: 500m, memory: 3Gi}
+      limits: {memory: 4Gi}
+    config:
+      managedLedgerDefaultEnsembleSize: "2"
+      managedLedgerDefaultWriteQuorum: "2"
+      managedLedgerDefaultAckQuorum: "2"
+    pod:
+      antiAffinity: Preferred
+      nodeSelector:
+        pulsar.songof.dev/two-node: "true"
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+        - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+  proxy:
+    enabled: true
+    replicas: 1
+    serviceType: ClusterIP
+    jvm:
+      heap: 512m
+      directMemory: 512m
+    resources:
+      requests: {cpu: 100m, memory: 1536Mi}
+      limits: {memory: 2Gi}
+    pod:
+      antiAffinity: Preferred
+      nodeSelector:
+        pulsar.songof.dev/two-node: "true"
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+        - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+  monitoring:
+    enabled: false

@@ -15,7 +15,6 @@ type fakeProm struct {
 	queries []string
 	answer  func(query string) []map[string]any
 }
-
 func (f *fakeProm) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("query")
 	f.queries = append(f.queries, q)
@@ -26,7 +25,6 @@ func (f *fakeProm) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"resultType": typ, "result": result}})
 }
-
 func matrix(labels map[string]string, values ...float64) map[string]any {
 	pts := [][]any{}
 	for i, v := range values {
@@ -40,7 +38,6 @@ func vector(labels map[string]string, v string) map[string]any {
 }
 
 func formatValue(v float64) string { b, _ := json.Marshal(v); return string(b) }
-
 func TestBuild(t *testing.T) {
 	f := &fakeProm{answer: func(q string) []map[string]any {
 		switch {
@@ -70,7 +67,6 @@ func TestBuild(t *testing.T) {
 	}}
 	srv := httptest.NewServer(f)
 	defer srv.Close()
-
 	d, err := Build(context.Background(), Prometheus{URL: srv.URL}, "pulsar", "demo", time.Hour, time.Unix(1_700_000_100, 0))
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +95,6 @@ func TestBuild(t *testing.T) {
 		}
 	}
 }
-
 func TestBuildFailsWhenPrometheusIsDown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "down", 503) }))
 	defer srv.Close()
@@ -107,7 +102,6 @@ func TestBuildFailsWhenPrometheusIsDown(t *testing.T) {
 		t.Fatal("no error from an unreachable Prometheus")
 	}
 }
-
 func TestBuildReportsFailedQueries(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("query") == "vector(1)" {
@@ -123,7 +117,6 @@ func TestBuildReportsFailedQueries(t *testing.T) {
 		t.Fatalf("err = %v errors = %v", err, d.Errors)
 	}
 }
-
 func TestStepAndRange(t *testing.T) {
 	if StepFor(time.Hour) != 15*time.Second || StepFor(7*24*time.Hour) != 42*time.Minute {
 		t.Fatalf("steps = %v %v", StepFor(time.Hour), StepFor(7*24*time.Hour))

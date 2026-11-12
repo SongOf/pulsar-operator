@@ -5,18 +5,18 @@ import (
 	"context"
 	"fmt"
 
+	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
+	"github.com/SongOf/pulsar-operator/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
-	"github.com/SongOf/pulsar-operator/internal/resources"
 )
 
 // applier creates or updates the objects a cluster owns.
@@ -27,9 +27,19 @@ type applier struct {
 }
 
 func (a applier) own(obj client.Object) error {
+	if obj.GetUID() != "" {
+		return a.requireOwned(obj)
+	}
 	return controllerutil.SetControllerReference(a.owner, obj, a.scheme)
 }
 
+// Existing resources are never implicitly adopted, including unowned objects.
+func (a applier) requireOwned(obj client.Object) error {
+	if a.owner.GetUID() == "" || !metav1.IsControlledBy(obj, a.owner) {
+		return fmt.Errorf("refusing to modify %T %s: not controlled by %s (UID %s)", obj, client.ObjectKeyFromObject(obj), a.owner.GetName(), a.owner.GetUID())
+	}
+	return nil
+}
 func mergeMap(dst, src map[string]string) map[string]string {
 	if dst == nil {
 		dst = map[string]string{}
@@ -78,7 +88,6 @@ func (a applier) service(ctx context.Context, want *corev1.Service) error {
 	})
 	return err
 }
-
 func (a applier) pdb(ctx context.Context, want *policyv1.PodDisruptionBudget) error {
 	got := &policyv1.PodDisruptionBudget{ObjectMeta: want.ObjectMeta}
 	_, err := controllerutil.CreateOrUpdate(ctx, a.c, got, func() error {
@@ -104,15 +113,21 @@ func (a applier) statefulSet(ctx context.Context, want *appsv1.StatefulSet, recr
 	if err != nil {
 		return nil, err
 	}
+	if err := a.requireOwned(got); err != nil {
+		return nil, err
+	}
+	if got.DeletionTimestamp != nil {
+		return nil, errRecreating
+	}
 	wantHash := want.Annotations[resources.AnnotationVolumeTemplateHash]
 	if recreate && wantHash != "" && got.Annotations[resources.AnnotationVolumeTemplateHash] != wantHash {
 		orphan := metav1DeleteOrphan()
-		if err := a.c.Delete(ctx, got, orphan); err != nil && !apierrors.IsNotFound(err) {
+		if err := deleteObserved(ctx, a.c, got, orphan); err != nil {
 			return nil, err
 		}
 		return nil, errRecreating
 	}
-	patch := client.MergeFrom(got.DeepCopy())
+	patch := client.MergeFromWithOptions(got.DeepCopy(), client.MergeFromWithOptimisticLock{})
 	got.Labels = mergeMap(got.Labels, want.Labels)
 	got.Spec.Replicas = want.Spec.Replicas
 	got.Spec.Template = want.Spec.Template
@@ -129,7 +144,6 @@ var errRecreating = fmt.Errorf("statefulset is being recreated with new volume c
 func metav1DeleteOrphan() client.DeleteOption {
 	return client.PropagationPolicy("Orphan")
 }
-
 func (a applier) deployment(ctx context.Context, want *appsv1.Deployment) (*appsv1.Deployment, error) {
 	got := &appsv1.Deployment{ObjectMeta: want.ObjectMeta}
 	_, err := controllerutil.CreateOrUpdate(ctx, a.c, got, func() error {
@@ -154,21 +168,42 @@ func (a applier) job(ctx context.Context, want *batchv1.Job) (*batchv1.Job, erro
 		}
 		return want, a.c.Create(ctx, want)
 	}
-	return got, err
+	if err != nil {
+		return nil, err
+	}
+	if err := a.requireOwned(got); err != nil {
+		return nil, err
+	}
+	if got.DeletionTimestamp != nil {
+		return nil, errRecreating
+	}
+	return got, nil
 }
 
-// deleteIfExists removes an object, ignoring absence.
-func deleteIfExists(ctx context.Context, c client.Client, obj client.Object) error {
-	err := c.Delete(ctx, obj, client.PropagationPolicy("Background"))
-	if apierrors.IsNotFound(err) {
+// deleteOwned checks ownership on an observed object before deleting that exact
+// version. UID and resourceVersion preconditions also protect against stale caches.
+func (a applier) deleteOwned(ctx context.Context, obj client.Object) error {
+	if err := a.c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if err := a.requireOwned(obj); err != nil {
+		return err
+	}
+	return deleteObserved(ctx, a.c, obj, client.PropagationPolicy("Background"))
+}
+func deleteObserved(ctx context.Context, c client.Client, obj client.Object, propagation client.DeleteOption) error {
+	uid, rv := obj.GetUID(), obj.GetResourceVersion()
+	if uid == "" || rv == "" {
+		return fmt.Errorf("refusing to delete %T %s without observed UID/resourceVersion", obj, client.ObjectKeyFromObject(obj))
+	}
+	if obj.GetDeletionTimestamp() != nil {
 		return nil
 	}
-	return err
+	return client.IgnoreNotFound(c.Delete(ctx, obj, propagation, client.Preconditions{UID: &uid, ResourceVersion: &rv}))
 }
 
 func jobSucceeded(j *batchv1.Job) bool { return jobCondition(j, batchv1.JobComplete) }
 func jobFailed(j *batchv1.Job) bool    { return jobCondition(j, batchv1.JobFailed) }
-
 func jobCondition(j *batchv1.Job, t batchv1.JobConditionType) bool {
 	for _, c := range j.Status.Conditions {
 		if c.Type == t && c.Status == corev1.ConditionTrue {
@@ -197,7 +232,6 @@ func stsStatus(s *appsv1.StatefulSet) v1.ComponentStatus {
 			st.UpdatedReplicas == want && (st.CurrentRevision == st.UpdateRevision || st.UpdateRevision == ""),
 	}
 }
-
 func deployStatus(d *appsv1.Deployment) v1.ComponentStatus {
 	if d == nil {
 		return v1.ComponentStatus{}
@@ -213,7 +247,6 @@ func deployStatus(d *appsv1.Deployment) v1.ComponentStatus {
 		RolledOut: st.ObservedGeneration >= d.Generation && st.UpdatedReplicas == want && st.ReadyReplicas == want && st.Replicas == want,
 	}
 }
-
 func containerImage(p corev1.PodSpec) string {
 	if len(p.Containers) == 0 {
 		return ""

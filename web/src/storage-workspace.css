@@ -1,0 +1,11 @@
+.storage-workspace { min-width: 0; width: 100%; }
+.storage-workspace-frame { display: block; width: 100%; height: calc(100vh - 112px); min-height: 640px; border: 1px solid var(--line); border-radius: 12px; background: #f6f7f9; }
+.storage-workspace-frame[hidden] { display: none; }
+.storage-workspace-status { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); text-align: center; color: var(--muted); }
+.storage-workspace-status h2, .storage-workspace-status p { margin: 0; }
+.storage-workspace-error h2 { color: var(--text); }
+.storage-workspace-error button { margin-top: 6px; }
+.storage-workspace-spinner { width: 24px; height: 24px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: storage-workspace-spin .8s linear infinite; }
+@keyframes storage-workspace-spin { to { transform: rotate(360deg); } }
+@media (max-width: 760px) { .storage-workspace-frame { height: calc(100vh - 96px); min-height: 560px; border-radius: 8px; } }
+@media (prefers-reduced-motion: reduce) { .storage-workspace-spinner { animation: none; } }

@@ -71,8 +71,8 @@ type ComponentSpec struct {
 
 // VolumeSpec describes one persistent volume claim per pod.
 type VolumeSpec struct {
-	// Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-	// decreasing it is refused.
+	// Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+	// ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
 	Size resource.Quantity `json:"size"`
 	// StorageClassName of the PVCs; the cluster default when empty. Cannot be changed after creation.
 	// +optional

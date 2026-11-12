@@ -2,23 +2,20 @@
 
 本文定义 pulsar-operator 要接管的 Pulsar / BookKeeper 集群运维功能，并标出当前实现状态。
 
-状态：✅ 已实现并经过测试　🟡 部分实现　⬜ 规划中
+状态：✅ 已实现并经过相应自动化测试　🟡 部分实现　⬜ 规划中。自动化测试不代表所有功能已在当前两节点现场运行；真实验收范围见[验证记录](validation.md)。
 
 ## 设计原则
 
 1. **声明式**：所有运维操作都是修改 `PulsarCluster` / `BookKeeperCluster` 的 `spec`，控制器负责收敛。控制台、kubectl、GitOps 走同一条路径。
 2. **安全优先于速度**：可能丢数据的操作（bookie 缩容、缩盘、改 ZooKeeper 成员数）要么按安全流程逐步执行，要么拒绝并在 `status.conditions` 说明原因。
 3. **状态可观测**：每个组件的副本、就绪数、镜像、滚动进度，每个 bookie 的 ID 与 PVC 容量，以及进行中的下线流程，都写在 `status` 中。
-
 ## 资源模型
 
 | CRD | 作用 |
 | --- | --- |
 | `PulsarCluster`（短名 `psc`） | 完整集群：ZooKeeper、BookKeeper、Broker、Proxy |
 | `BookKeeperCluster`（短名 `bkc`） | BookKeeper 集群。PulsarCluster 会创建一个同名的子资源；也可单独使用，连接已有 ZooKeeper |
-
 ## 1. 集群生命周期
-
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
 | 创建集群 | ✅ | 按依赖顺序启动：ZooKeeper → BookKeeper 元数据初始化 → bookie → Pulsar 集群元数据初始化 → broker → proxy。前一步就绪才开始下一步 |
@@ -27,9 +24,7 @@
 | 暂停调谐 | ✅ | `spec.paused: true`，用于人工维护 |
 | 集群状态汇总 | ✅ | `status.phase`：Initializing / Running / Updating / Scaling / Decommissioning / Degraded / Failed |
 | 多集群 / geo-replication | ⬜ | 跨集群复制、全局 configuration store |
-
 ## 2. Pulsar（Broker / Proxy）
-
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
 | Broker 扩容 / 缩容 | ✅ | broker 无状态，缩容时由其他 broker 接管 topic |
@@ -41,9 +36,7 @@
 | Broker 优雅下线（先卸载 bundle） | 🟡 | 依赖 broker 自身的关闭流程；后续计划在缩容前主动执行 `unload` |
 | 租户 / 命名空间 / Topic 管理 | ⬜ | 规划为独立 CRD（PulsarTenant、PulsarNamespace、PulsarTopic） |
 | Functions worker | ⬜ | 当前固定关闭 |
-
 ## 3. BookKeeper
-
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
 | 创建 bookie 集群 | ✅ | StatefulSet，bookie ID 为 Pod FQDN，重建后 ID 保持不变 |
@@ -55,21 +48,19 @@
 | 下线进度可视化 | ✅ | `status.decommission`：bookie ID、阶段、消息、开始时间 |
 | 机架感知 / 跨可用区放置 | ⬜ | 规划把节点拓扑写入 bookie 的 rack 信息 |
 | 故障 bookie 自动替换 | ⬜ | 目前由 autorecovery 补齐副本，坏盘需要人工删除 PVC |
-
 ## 4. 磁盘管理（PV / PVC）
-
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
 | journal / ledger 独立 PVC | ✅ | 每个 bookie 各一个 journal PVC 和一个 ledger PVC，可分别指定大小和 StorageClass |
 | ZooKeeper 数据 PVC | ✅ | |
-| 在线扩容 | ✅ | StorageClass 允许扩容时，直接修改现有 PVC；同时用孤立删除（orphan）的方式重建 StatefulSet 以更新模板，Pod 不重启 |
+| BookKeeper journal / ledger 在线扩容 | ✅ | StorageClass 允许扩容时，直接修改现有 PVC；同时用孤立删除（orphan）的方式重建 StatefulSet 以更新模板，Pod 不重启 |
+| 已有 ZooKeeper / Prometheus 卷变更 | 🟡 | 当前拒绝更改大小或 StorageClass，并报告条件；不会静默忽略，也不会扩大 Prometheus 保留阈值。需要独立的数据迁移方案 |
 | 不支持扩容时的处理 | ✅ | 报告 `StorageResized=False / ExpansionNotSupported`；新 bookie 使用新尺寸，现有 PVC 保持原尺寸 |
 | 拒绝缩盘、拒绝修改 StorageClass | ✅ | 报告 `SpecRejected` 并给出原因，现有资源不受影响 |
 | PVC 状态展示 | ✅ | 每个 PVC 的申请容量、实际容量、绑定状态、是否正在扩容 |
 | 删除时的保留策略 | ✅ | `reclaimPolicy`：Retain（默认）或 Delete |
 | 磁盘使用率告警 / 自动扩盘 | ⬜ | 需要接入 bookie 指标 |
 | 更换 StorageClass（数据迁移） | ⬜ | 需要逐个下线 bookie 后重建，可以复用现有的 decommission 流程实现 |
-
 ## 5. 配置管理
 
 | 功能 | 状态 | 说明 |
@@ -81,7 +72,6 @@
 | 资源 requests / limits | ✅ | |
 | 动态配置（不重启生效） | ⬜ | 规划通过 `pulsar-admin brokers update-dynamic-config` 下发 |
 | 认证 / 授权 / TLS | ⬜ | JWT、mTLS、cert-manager 集成 |
-
 ## 6. 升级
 
 | 功能 | 状态 | 说明 |
@@ -98,7 +88,6 @@
 | 创建集群 | ✅ | myid 由主机名推导 |
 | 修改成员数 | 🟡 | 当前**禁止**修改，会报告 `SpecRejected`，因为需要 dynamic reconfig；计划后续实现 |
 | 备份 / 恢复 | ⬜ | |
-
 ## 8. 控制台
 
 | 功能 | 状态 |
@@ -116,13 +105,11 @@
 | 访问令牌（`CONSOLE_TOKEN`） | ✅ |
 | 监控大盘（见第 9 节） | ✅ |
 | 租户 / Topic 管理 | ⬜ |
-
 ## 9. 监控
-
 | 功能 | 状态 | 说明 |
 | --- | --- | --- |
 | 指标采集 | ✅ | `spec.monitoring.enabled` 会为集群部署一个 Prometheus，通过 Pod 自动发现抓取 broker、proxy、bookie 和 ZooKeeper 的指标 |
-| 持久化 | ✅ | 数据存在 PVC 上（默认 20Gi），operator 或 Prometheus 重启后都不会丢失，已实测 Prometheus Pod 重建后历史数据完整 |
+| 持久化 | ✅ | 数据存在 PVC 上（默认 20Gi）；当前两节点存储验收关闭内置监控，未验证 Prometheus Pod 重建后的历史数据恢复 |
 | 保留策略 | ✅ | 同时按时间（默认 15 天）和容量保留，容量默认为磁盘的 80%，最旧的数据先删除，磁盘不会被写满 |
 | 长期存储 | ✅ | `remoteWrite` 可以同时写入 VictoriaMetrics、Thanos 或 Mimir；控制台查询时用 `prometheusURL` 指向这些长期存储 |
 | 接入已有 Prometheus | ✅ | 设置 `prometheusURL` 后 operator 不再部署 Prometheus；`config/monitoring/podmonitor.yaml` 是 Prometheus Operator 的抓取配置 |

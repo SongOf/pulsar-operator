@@ -11,7 +11,6 @@ import (
 var (
 	// GroupVersion is the group and version of these objects.
 	GroupVersion = schema.GroupVersion{Group: "pulsar.songof.dev", Version: "v1alpha1"}
-
 	// SchemeBuilder registers the types of this group with a scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
 

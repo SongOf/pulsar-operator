@@ -1,10 +1,9 @@
 // node --test web/src  (no dependencies)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bookieRemoval, nest, pulsarView, upgradePlan } from './model.js'
+import { bookieRemoval, nest, pulsarView, upgradePlan, newPulsarCluster } from './model.js'
 
 const ready = (n, image) => ({ replicas: n, readyReplicas: n, updatedReplicas: n, image, rolledOut: true })
-
 function cluster({ image = 'pulsar:1', zk, bk, broker, proxy, bookies = 3, min = 3, decommission, overrides = {} } = {}) {
   const pc = {
     metadata: { name: 'demo', namespace: 'pulsar' },
@@ -20,20 +19,25 @@ function cluster({ image = 'pulsar:1', zk, bk, broker, proxy, bookies = 3, min =
   const child = { status: { decommission, bookieDetails: Array.from({ length: bookies }, (_, i) => ({ name: `demo-bookie-${i}`, bookieID: `b${i}` })) } }
   return pulsarView(pc, child)
 }
-
 const bookie = v => v.components.find(c => c.key === 'bookie')
 
 test('nest builds a merge patch', () => {
   assert.deepEqual(nest(['bookkeeper', 'replicas'], 2), { bookkeeper: { replicas: 2 } })
   assert.deepEqual(nest(['broker', 'image'], null), { broker: { image: null } })
 })
-
+test('cluster creation preserves distinct storage roles', () => {
+  const spec = newPulsarCluster({ zkStorageClass: 'zk', journalStorageClass: 'journal', ledgerStorageClass: 'ledger' }).spec
+  assert.equal(spec.zookeeper.storage.storageClassName, 'zk')
+  assert.equal(spec.bookkeeper.storage.journal.storageClassName, 'journal')
+  assert.equal(spec.bookkeeper.storage.ledger.storageClassName, 'ledger')
+  const legacy = newPulsarCluster({ storageClass: 'old-default' }).spec
+  assert.equal(legacy.bookkeeper.storage.ledger.storageClassName, 'old-default')
+})
 test('upgrade plan follows the operator order', () => {
   const plan = upgradePlan(cluster())
   assert.deepEqual(plan.map(c => c.key), ['zookeeper', 'bookie', 'broker', 'proxy'])
   assert.ok(plan.every(c => c.state === 'current'))
 })
-
 test('a cluster upgrade shows the first component rolling and the rest waiting for it', () => {
   const v = cluster({ image: 'pulsar:2', zk: { replicas: 3, readyReplicas: 3, updatedReplicas: 1, image: 'pulsar:2', rolledOut: false },
     bk: ready(3, 'pulsar:1'), broker: ready(2, 'pulsar:1'), proxy: ready(1, 'pulsar:1') })
@@ -45,7 +49,6 @@ test('a cluster upgrade shows the first component rolling and the rest waiting f
   assert.equal(broker.state, 'waiting')
   assert.equal(proxy.state, 'waiting')
 })
-
 test('a single-component upgrade targets only that component', () => {
   const v = cluster({ overrides: { broker: 'pulsar:2' }, broker: ready(2, 'pulsar:1') })
   const plan = upgradePlan(v)
@@ -56,7 +59,6 @@ test('a single-component upgrade targets only that component', () => {
   assert.equal(plan.find(c => c.key === 'zookeeper').desired, 'pulsar:1')
   assert.equal(plan.find(c => c.key === 'zookeeper').state, 'current')
 })
-
 test('one bookie can be removed from a healthy cluster above its minimum', () => {
   const v = cluster({ bookies: 4, min: 3 })
   const r = bookieRemoval(v, bookie(v))
@@ -69,7 +71,6 @@ test('no removal while another bookie is being decommissioned', () => {
   const v = cluster({ bookies: 4, decommission: { ordinal: 4, phase: 'Replicating' } })
   assert.match(bookieRemoval(v, bookie(v)).blocked, /being removed/)
 })
-
 test('no removal while the bookie StatefulSet has not caught up with the spec', () => {
   const v = cluster({ bookies: 4, bk: ready(5, 'pulsar:1') })
   assert.match(bookieRemoval(v, bookie(v)).blocked, /being removed/)
@@ -79,7 +80,6 @@ test('no removal at the minimum', () => {
   const v = cluster({ bookies: 3, min: 3 })
   assert.match(bookieRemoval(v, bookie(v)).blocked, /minimum of 3/)
 })
-
 test('no removal while a bookie is not ready', () => {
   const v = cluster({ bookies: 4, bk: { replicas: 4, readyReplicas: 3, updatedReplicas: 4, image: 'pulsar:1', rolledOut: false } })
   assert.match(bookieRemoval(v, bookie(v)).blocked, /must be ready/)

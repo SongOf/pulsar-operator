@@ -39,7 +39,7 @@ type BookKeeperSpec struct {
 	// +kubebuilder:default=3
 	// +kubebuilder:validation:Minimum=0
 	// +optional
-	MinReplicas int32 `json:"minReplicas,omitempty"`
+	MinReplicas int32             `json:"minReplicas,omitempty"`
 	Storage     BookKeeperStorage `json:"storage"`
 	// +optional
 	AutoRecovery AutoRecoverySpec `json:"autoRecovery,omitempty"`
@@ -62,8 +62,7 @@ type BookKeeperClusterSpec struct {
 	Paused bool `json:"paused,omitempty"`
 	// Monitoring of a standalone BookKeeperCluster; one owned by a PulsarCluster is monitored by its Prometheus.
 	// +optional
-	Monitoring MonitoringSpec `json:"monitoring,omitempty"`
-
+	Monitoring     MonitoringSpec `json:"monitoring,omitempty"`
 	BookKeeperSpec `json:",inline"`
 }
 
@@ -108,6 +107,18 @@ type DecommissionStatus struct {
 	Job       string            `json:"job,omitempty"`
 	StartedAt metav1.Time       `json:"startedAt"`
 	Message   string            `json:"message,omitempty"`
+	// PVCUIDs records the exact journal/ledger claims before stopping a bookie.
+	// Cleanup must never delete a different claim recreated under the same name.
+	// +optional
+	PVCUIDs map[string]string `json:"pvcUIDs,omitempty"`
+}
+
+// BookKeeperRecreationStatus is the durable layout to restore after orphaning a
+// StatefulSet. New spec changes are reconciled only after restoring this layout.
+type BookKeeperRecreationStatus struct {
+	// +kubebuilder:validation:Minimum=0
+	Replicas int32             `json:"replicas"`
+	Storage  BookKeeperStorage `json:"storage"`
 }
 
 // BookKeeperClusterStatus is the observed state of a BookKeeper cluster.
@@ -124,6 +135,10 @@ type BookKeeperClusterStatus struct {
 	BookieDetails []BookieStatus `json:"bookieDetails,omitempty"`
 	// +optional
 	Decommission *DecommissionStatus `json:"decommission,omitempty"`
+	// Recreation preserves the safe replica boundary and volume layout across an orphaning
+	// StatefulSet replacement. It is cleared only after the replacement exists.
+	// +optional
+	Recreation *BookKeeperRecreationStatus `json:"recreation,omitempty"`
 	// ExpansionSupported reports whether the StorageClasses of the bookie PVCs allow online expansion.
 	// +optional
 	ExpansionSupported *bool `json:"expansionSupported,omitempty"`
@@ -144,9 +159,8 @@ type BookKeeperClusterStatus struct {
 type BookKeeperCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   BookKeeperClusterSpec   `json:"spec,omitempty"`
-	Status BookKeeperClusterStatus `json:"status,omitempty"`
+	Spec              BookKeeperClusterSpec   `json:"spec,omitempty"`
+	Status            BookKeeperClusterStatus `json:"status,omitempty"`
 }
 
 // BookKeeperClusterList is a list of BookKeeperClusters.

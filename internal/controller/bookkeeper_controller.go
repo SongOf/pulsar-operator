@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
+	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
+	"github.com/SongOf/pulsar-operator/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,9 +21,7 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	v1 "github.com/SongOf/pulsar-operator/api/v1alpha1"
-	"github.com/SongOf/pulsar-operator/internal/resources"
+	"time"
 )
 
 // BookKeeperReconciler reconciles a BookKeeperCluster.
@@ -45,7 +43,6 @@ type BookKeeperReconciler struct {
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
-
 const (
 	requeueBusy   = 10 * time.Second
 	requeueSteady = 60 * time.Second
@@ -67,6 +64,8 @@ func (r *BookKeeperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		res, err = ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 	if err != nil {
+		status.Phase = v1.PhaseFailed
+		markStorageRejection(&status.Conditions, bk.Generation, err)
 		meta.SetStatusCondition(&status.Conditions, metav1.Condition{Type: v1.ConditionReady, Status: metav1.ConditionFalse, Reason: "ReconcileError", Message: err.Error(), ObservedGeneration: bk.Generation})
 	}
 	if uerr := r.updateStatus(ctx, bk, status); uerr != nil && err == nil {
@@ -74,20 +73,23 @@ func (r *BookKeeperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	return res, err
 }
-
 func (r *BookKeeperReconciler) updateStatus(ctx context.Context, bk *v1.BookKeeperCluster, status *v1.BookKeeperClusterStatus) error {
 	if equalStatus(bk.Status, *status) {
 		return nil
 	}
-	bk.Status = *status
-	return client.IgnoreNotFound(r.Status().Update(ctx, bk))
+	updated := bk.DeepCopy()
+	updated.Status = *status.DeepCopy()
+	if err := r.Status().Update(ctx, updated); err != nil {
+		return err
+	}
+	// Subsequent checkpoints in this reconciliation must use the returned version.
+	*bk = *updated
+	return nil
 }
-
 func (r *BookKeeperReconciler) reconcile(ctx context.Context, bk *v1.BookKeeperCluster, status *v1.BookKeeperClusterStatus) (ctrl.Result, error) {
 	b := resources.BookKeeper{C: bk}
 	a := applier{c: r.Client, scheme: r.Scheme, owner: bk}
 	gen := bk.Generation
-
 	cm := b.ConfigMap()
 	if err := a.configMap(ctx, cm); err != nil {
 		return ctrl.Result{}, err
@@ -102,12 +104,11 @@ func (r *BookKeeperReconciler) reconcile(ctx context.Context, bk *v1.BookKeeperC
 	// A BookKeeperCluster owned by a PulsarCluster is scraped by that cluster's Prometheus.
 	if !ownedByPulsar(bk) {
 		mon, err := reconcileMonitoring(ctx, a, resources.Monitoring{Cluster: bk.Name, Namespace: bk.Namespace, Domain: bk.Spec.ClusterDomain, Spec: bk.Spec.Monitoring})
+		status.Monitoring = mon
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		status.Monitoring = mon
 	}
-
 	// 1. BookKeeper metadata must exist before any bookie starts.
 	initJob, err := a.job(ctx, b.InitJob())
 	if err != nil {
@@ -125,34 +126,59 @@ func (r *BookKeeperReconciler) reconcile(ctx context.Context, bk *v1.BookKeeperC
 		status.Phase = v1.PhaseInitializing
 		return ctrl.Result{RequeueAfter: requeueBusy}, nil
 	}
-
 	current, exists, err := getOptional(ctx, r.Client, types.NamespacedName{Namespace: bk.Namespace, Name: b.StatefulSetName()}, &appsv1.StatefulSet{})
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	currentReplicas := bk.Spec.Replicas
 	if exists {
+		if err := a.requireOwned(current); err != nil {
+			return ctrl.Result{}, err
+		}
 		currentReplicas = ptr.Deref(current.Spec.Replicas, 0)
 	}
 
 	// 2. Storage: expand PVCs in place, refuse shrinking and class changes.
-	recreate, err := r.reconcileStorage(ctx, b, status, currentReplicas)
-	if err != nil {
-		return ctrl.Result{}, err
+	recreate := true
+	workload := b
+	if status.Recreation != nil {
+		// Restore the checkpointed layout before processing another spec edit.
+		// In particular, a missing StatefulSet must not let class changes slip past
+		// the comparison against its immutable volume claim templates.
+		restored := bk.DeepCopy()
+		restored.Spec.Storage = *status.Recreation.Storage.DeepCopy()
+		workload = resources.BookKeeper{C: restored}
+	} else {
+		recreate, err = r.reconcileStorage(ctx, b, status, currentReplicas)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
-
 	// 3. Scale, one decommissioned bookie at a time.
 	replicas, busy, err := r.reconcileScale(ctx, b, a, status, currentReplicas, exists)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	sts, err := a.statefulSet(ctx, b.StatefulSet(replicas, hash), recreate)
+	want := workload.StatefulSet(replicas, hash)
+	if exists && recreate && current.Annotations[resources.AnnotationVolumeTemplateHash] != want.Annotations[resources.AnnotationVolumeTemplateHash] && status.Recreation == nil {
+		status.Recreation = &v1.BookKeeperRecreationStatus{Replicas: replicas, Storage: *bk.Spec.Storage.DeepCopy()}
+		if status.Decommission == nil {
+			status.Phase = v1.PhaseUpdating
+		}
+		meta.SetStatusCondition(&status.Conditions, metav1.Condition{Type: v1.ConditionReady, Status: metav1.ConditionFalse, Reason: "StatefulSetRecreating", ObservedGeneration: gen})
+		// Persist the safe boundary before orphaning, even if scale-in was blocked
+		// by health or minReplicas and no decommission operation was started.
+		if err := r.updateStatus(ctx, bk, status); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	sts, err := a.statefulSet(ctx, want, recreate)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	status.Recreation = nil
 	status.Bookies = stsStatus(sts)
-
 	// 4. Auto-recovery.
 	ar := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: b.AutoRecoveryName(), Namespace: bk.Namespace}}
 	if b.AutoRecoveryEnabled() {
@@ -161,17 +187,15 @@ func (r *BookKeeperReconciler) reconcile(ctx context.Context, bk *v1.BookKeeperC
 		}
 		status.AutoRecovery = deployStatus(ar)
 	} else {
-		if err := deleteIfExists(ctx, r.Client, ar); err != nil {
+		if err := a.deleteOwned(ctx, ar); err != nil {
 			return ctrl.Result{}, err
 		}
 		status.AutoRecovery = v1.ComponentStatus{}
 	}
-
 	if err := r.observeBookies(ctx, b, status, replicas); err != nil {
 		return ctrl.Result{}, err
 	}
-
-	ready := status.Bookies.RolledOut && (!b.AutoRecoveryEnabled() || status.AutoRecovery.RolledOut)
+	ready := status.Bookies.RolledOut && (!b.AutoRecoveryEnabled() || status.AutoRecovery.RolledOut) && !meta.IsStatusConditionTrue(status.Conditions, v1.ConditionSpecRejected)
 	switch {
 	case status.Decommission != nil && status.Decommission.Phase == v1.DecommissionFailed:
 		status.Phase = v1.PhaseFailed
@@ -202,12 +226,18 @@ func (r *BookKeeperReconciler) reconcile(ctx context.Context, bk *v1.BookKeeperC
 func (r *BookKeeperReconciler) reconcileScale(ctx context.Context, b resources.BookKeeper, a applier, status *v1.BookKeeperClusterStatus, current int32, exists bool) (int32, bool, error) {
 	bk := b.C
 	gen := bk.Generation
+	if d := status.Decommission; d != nil {
+		if len(d.PVCUIDs) != 2 {
+			return current, true, fmt.Errorf("decommission of %s has no durable PVC identities; pause and recover the legacy operation before continuing", d.BookieID)
+		}
+		return r.stepDecommission(ctx, b, a, status, d)
+	}
+	if status.Recreation != nil {
+		return status.Recreation.Replicas, true, nil
+	}
 	if !exists {
 		meta.RemoveStatusCondition(&status.Conditions, v1.ConditionScaleInBlocked)
 		return bk.Spec.Replicas, false, nil
-	}
-	if d := status.Decommission; d != nil {
-		return r.stepDecommission(ctx, b, a, status, d)
 	}
 	desired := bk.Spec.Replicas
 	if desired >= current {
@@ -234,12 +264,21 @@ func (r *BookKeeperReconciler) reconcileScale(ctx context.Context, b resources.B
 		return current, true, nil
 	}
 	ordinal := current - 1
+	identities, err := r.decommissionPVCs(ctx, b, a, sts, ordinal)
+	if err != nil {
+		return current, false, err
+	}
 	status.Decommission = &v1.DecommissionStatus{Ordinal: ordinal, BookieID: b.BookieID(ordinal), Phase: v1.DecommissionStopping, StartedAt: metav1.Now(),
-		Message: "stopping the bookie before re-replicating its ledgers"}
+		Message: "stopping the bookie before re-replicating its ledgers", PVCUIDs: identities}
+	status.Phase = v1.PhaseDecommissioning
+	meta.SetStatusCondition(&status.Conditions, metav1.Condition{Type: v1.ConditionReady, Status: metav1.ConditionFalse, Reason: "Decommissioning", ObservedGeneration: gen})
+	// Write-ahead checkpoint: no scale-down may happen until this intent is durable.
+	if err := r.updateStatus(ctx, bk, status); err != nil {
+		return current, true, err
+	}
 	r.event(bk, corev1.EventTypeNormal, "DecommissionStarted", "decommissioning bookie %s", status.Decommission.BookieID)
 	return ordinal, true, nil
 }
-
 func (r *BookKeeperReconciler) stepDecommission(ctx context.Context, b resources.BookKeeper, a applier, status *v1.BookKeeperClusterStatus, d *v1.DecommissionStatus) (int32, bool, error) {
 	bk := b.C
 	switch d.Phase {
@@ -270,29 +309,50 @@ func (r *BookKeeperReconciler) stepDecommission(ctx context.Context, b resources
 		if err != nil {
 			return d.Ordinal, true, err
 		}
+		if err := a.requireOwned(job); err != nil {
+			return d.Ordinal, true, err
+		}
+		if job.DeletionTimestamp != nil {
+			return d.Ordinal, true, nil
+		}
 		switch {
 		case jobSucceeded(job):
 			d.Phase, d.Message = v1.DecommissionCleaning, "deleting the bookie's PVCs"
+			if err := r.updateStatus(ctx, bk, status); err != nil {
+				return d.Ordinal, true, err
+			}
 		case jobFailed(job):
 			if d.Phase != v1.DecommissionFailed {
 				r.event(bk, corev1.EventTypeWarning, "DecommissionFailed", "decommission job %s failed; retrying in 5 minutes", job.Name)
 			}
 			d.Phase, d.Message = v1.DecommissionFailed, "job "+job.Name+" failed; it is retried every 5 minutes, check its logs"
 			if job.Status.CompletionTime == nil && time.Since(lastJobTransition(job)) > 5*time.Minute {
-				if err := deleteIfExists(ctx, r.Client, job); err != nil {
+				if err := a.deleteOwned(ctx, job); err != nil {
 					return d.Ordinal, true, err
 				}
 			}
 		}
 	}
 	if d.Phase == v1.DecommissionCleaning {
+		allGone := true
 		for _, vol := range []string{resources.JournalVolume, resources.LedgerVolume} {
 			pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: bk.Namespace, Name: b.PVCName(vol, d.Ordinal)}}
-			if err := deleteIfExists(ctx, r.Client, pvc); err != nil {
+			gone, err := r.deleteDecommissionPVC(ctx, b, d, pvc)
+			if err != nil {
 				return d.Ordinal, true, err
 			}
+			allGone = allGone && gone
 		}
-		if err := deleteIfExists(ctx, r.Client, &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Namespace: bk.Namespace, Name: b.DecommissionJobName(d.Ordinal)}}); err != nil {
+		if !allGone {
+			return d.Ordinal, true, nil
+		}
+		job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Namespace: bk.Namespace, Name: b.DecommissionJobName(d.Ordinal)}}
+		if err := a.deleteOwned(ctx, job); err != nil {
+			return d.Ordinal, true, err
+		}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(job), &batchv1.Job{}); err == nil {
+			return d.Ordinal, true, nil
+		} else if !apierrors.IsNotFound(err) {
 			return d.Ordinal, true, err
 		}
 		r.event(bk, corev1.EventTypeNormal, "DecommissionCompleted", "bookie %s decommissioned and its PVCs deleted", d.BookieID)
@@ -300,7 +360,6 @@ func (r *BookKeeperReconciler) stepDecommission(ctx context.Context, b resources
 	}
 	return d.Ordinal, true, nil
 }
-
 func lastJobTransition(j *batchv1.Job) time.Time {
 	var t time.Time
 	for _, c := range j.Status.Conditions {
@@ -320,6 +379,27 @@ func (r *BookKeeperReconciler) reconcileStorage(ctx context.Context, b resources
 	var rejected, unsupported, resizing []string
 	expandable := true
 	seen := false
+	// Compare against the original templates as well as bound PVCs. Admission can
+	// resolve a nil class to the default on PVCs, while clearing an explicit class
+	// in the template must never silently select that default for future bookies.
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: bk.Namespace, Name: b.StatefulSetName()}, sts); err == nil {
+		if err := (applier{owner: bk}).requireOwned(sts); err != nil {
+			return false, err
+		}
+		for _, claim := range sts.Spec.VolumeClaimTemplates {
+			if spec, ok := want[claim.Name]; ok && !sameStorageClass(spec.StorageClassName, claim.Spec.StorageClassName) {
+				rejected = append(rejected, fmt.Sprintf("%s: storageClassName cannot change", claim.Name))
+			}
+		}
+	} else if !apierrors.IsNotFound(err) {
+		return false, err
+	}
+	if len(rejected) != 0 {
+		meta.SetStatusCondition(&status.Conditions, metav1.Condition{Type: v1.ConditionSpecRejected, Status: metav1.ConditionTrue,
+			Reason: "StorageChangeRejected", Message: joinMax(rejected), ObservedGeneration: gen})
+		return false, nil
+	}
 	for vol, spec := range want {
 		for i := int32(0); i < replicas; i++ {
 			pvc := &corev1.PersistentVolumeClaim{}
@@ -331,7 +411,7 @@ func (r *BookKeeperReconciler) reconcileStorage(ctx context.Context, b resources
 				return false, err
 			}
 			seen = true
-			if sc := ptr.Deref(spec.StorageClassName, ""); sc != "" && sc != ptr.Deref(pvc.Spec.StorageClassName, "") {
+			if sc := ptr.Deref(spec.StorageClassName, ""); spec.StorageClassName != nil && sc != ptr.Deref(pvc.Spec.StorageClassName, "") {
 				rejected = append(rejected, fmt.Sprintf("%s: storageClassName cannot change from %q", pvc.Name, ptr.Deref(pvc.Spec.StorageClassName, "")))
 				continue
 			}
@@ -349,7 +429,10 @@ func (r *BookKeeperReconciler) reconcileStorage(ctx context.Context, b resources
 					unsupported = append(unsupported, pvc.Name)
 					continue
 				}
-				patch := client.MergeFrom(pvc.DeepCopy())
+				if err := r.requireBookiePVC(ctx, b, sts, pvc, i); err != nil {
+					return false, err
+				}
+				patch := client.MergeFromWithOptions(pvc.DeepCopy(), client.MergeFromWithOptimisticLock{})
 				pvc.Spec.Resources.Requests[corev1.ResourceStorage] = spec.Size
 				if err := r.Patch(ctx, pvc, patch); err != nil {
 					return false, err
@@ -384,7 +467,6 @@ func (r *BookKeeperReconciler) reconcileStorage(ctx context.Context, b resources
 	}
 	return true, nil
 }
-
 func (r *BookKeeperReconciler) expandable(ctx context.Context, pvc *corev1.PersistentVolumeClaim) (bool, error) {
 	name := ptr.Deref(pvc.Spec.StorageClassName, "")
 	if name == "" {
@@ -425,7 +507,6 @@ func (r *BookKeeperReconciler) observeBookies(ctx context.Context, b resources.B
 	status.BookieDetails = details
 	return nil
 }
-
 func (r *BookKeeperReconciler) volumeStatus(ctx context.Context, ns, name string) (v1.VolumeStatus, error) {
 	vs := v1.VolumeStatus{Name: name}
 	pvc := &corev1.PersistentVolumeClaim{}
@@ -446,7 +527,6 @@ func (r *BookKeeperReconciler) volumeStatus(ctx context.Context, ns, name string
 	}
 	return vs, nil
 }
-
 func podReady(p *corev1.Pod) bool {
 	if p.DeletionTimestamp != nil {
 		return false
@@ -464,7 +544,6 @@ func (r *BookKeeperReconciler) event(obj runtime.Object, kind, reason, format st
 		r.Recorder.Eventf(obj, kind, reason, format, args...)
 	}
 }
-
 func joinMax(items []string) string {
 	const limit = 5
 	out := ""
@@ -494,9 +573,7 @@ func (r *BookKeeperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-
 func equalStatus(a, b any) bool { return apiequality.Semantic.DeepEqual(a, b) }
-
 func ownedByPulsar(bk *v1.BookKeeperCluster) bool {
 	for _, ref := range bk.OwnerReferences {
 		if ref.Kind == "PulsarCluster" && ref.Controller != nil && *ref.Controller {

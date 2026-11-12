@@ -51,7 +51,6 @@ func runningBK(t *testing.T, ns string, replicas int32, class *string) *v1.BookK
 	reconcileBK(t, ns, "bk")
 	return get(t, ns, "bk", &v1.BookKeeperCluster{})
 }
-
 func setReplicas(t *testing.T, ns string, replicas int32) {
 	t.Helper()
 	bk := get(t, ns, "bk", &v1.BookKeeperCluster{})
@@ -65,7 +64,6 @@ func TestBookiesWaitForMetadata(t *testing.T) {
 	ns := namespace(t)
 	newBK(t, ns, 3, nil)
 	reconcileBK(t, ns, "bk")
-
 	job := get(t, ns, "bk-bookie-init", &batchv1.Job{})
 	if !strings.Contains(strings.Join(job.Spec.Template.Spec.Containers[0].Command, " "), "initnewcluster") {
 		t.Fatal("init job does not format the metadata")
@@ -77,7 +75,6 @@ func TestBookiesWaitForMetadata(t *testing.T) {
 	if bk.Status.Phase != v1.PhaseInitializing {
 		t.Fatalf("phase = %s", bk.Status.Phase)
 	}
-
 	completeJob(t, ns, "bk-bookie-init")
 	reconcileBK(t, ns, "bk")
 	sts := get(t, ns, "bk-bookie", &appsv1.StatefulSet{})
@@ -92,7 +89,6 @@ func TestBookiesWaitForMetadata(t *testing.T) {
 		t.Fatal("MetadataInitialized not reported")
 	}
 }
-
 func TestRunningClusterIsReady(t *testing.T) {
 	ns := namespace(t)
 	bk := runningBK(t, ns, 3, nil)
@@ -103,7 +99,6 @@ func TestRunningClusterIsReady(t *testing.T) {
 		t.Fatalf("bookie details = %+v", bk.Status.BookieDetails)
 	}
 }
-
 func TestScaleOut(t *testing.T) {
 	ns := namespace(t)
 	runningBK(t, ns, 3, nil)
@@ -116,19 +111,17 @@ func TestScaleOut(t *testing.T) {
 		t.Fatal("scale-out started a decommission")
 	}
 }
-
 func TestScaleInDecommissionsOneBookieAtATime(t *testing.T) {
 	ns := namespace(t)
 	runningBK(t, ns, 4, nil)
 	for i := 0; i < 4; i++ {
 		createPod(t, ns, "bk-bookie-"+string(rune('0'+i)))
+		boundPVC(t, ns, "journal-bk-bookie-"+string(rune('0'+i)), "1Gi", nil)
+		boundPVC(t, ns, "ledgers-bk-bookie-"+string(rune('0'+i)), "2Gi", nil)
 	}
-	boundPVC(t, ns, "journal-bk-bookie-3", "1Gi", nil)
-	boundPVC(t, ns, "ledgers-bk-bookie-3", "2Gi", nil)
 
 	setReplicas(t, ns, 2)
 	reconcileBK(t, ns, "bk")
-
 	// Step 1: only the highest bookie stops.
 	if n := *get(t, ns, "bk-bookie", &appsv1.StatefulSet{}).Spec.Replicas; n != 3 {
 		t.Fatalf("statefulset shrank to %d; it must remove one bookie at a time", n)
@@ -143,7 +136,6 @@ func TestScaleInDecommissionsOneBookieAtATime(t *testing.T) {
 	if !absent(t, ns, "bk-bookie-decommission-3", &batchv1.Job{}) {
 		t.Fatal("decommission started while the bookie still runs")
 	}
-
 	// Step 2: once stopped, its ledgers are re-replicated.
 	deletePod(t, ns, "bk-bookie-3")
 	reconcileBK(t, ns, "bk")
@@ -156,17 +148,26 @@ func TestScaleInDecommissionsOneBookieAtATime(t *testing.T) {
 	}
 	// The PVCs stay until replication finished.
 	get(t, ns, "ledgers-bk-bookie-3", &corev1.PersistentVolumeClaim{})
-
 	// Step 3: after replication, its PVCs are deleted and the next bookie can go.
 	completeJob(t, ns, "bk-bookie-decommission-3")
 	reconcileBK(t, ns, "bk")
 	if !absent(t, ns, "journal-bk-bookie-3", &corev1.PersistentVolumeClaim{}) || !absent(t, ns, "ledgers-bk-bookie-3", &corev1.PersistentVolumeClaim{}) {
 		t.Fatal("PVCs of the decommissioned bookie were kept")
 	}
+	finishDeletion(t, ns, "journal-bk-bookie-3", &corev1.PersistentVolumeClaim{})
+	finishDeletion(t, ns, "ledgers-bk-bookie-3", &corev1.PersistentVolumeClaim{})
+	// Cleanup is durable until the Job is actually gone. envtest has no garbage
+	// collector, so finish any asynchronous Job deletion before resuming.
+	// A delete response can precede actual disappearance of the PVC; let the next
+	// reconciliation observe both claims gone before deleting the completed Job.
+	reconcileBK(t, ns, "bk")
+	if get(t, ns, "bk", &v1.BookKeeperCluster{}).Status.Decommission != nil {
+		finishDeletion(t, ns, "bk-bookie-decommission-3", &batchv1.Job{})
+		reconcileBK(t, ns, "bk")
+	}
 	if d := get(t, ns, "bk", &v1.BookKeeperCluster{}).Status.Decommission; d != nil {
 		t.Fatalf("decommission not finished: %+v", d)
 	}
-
 	// The next bookie goes only once the remaining ones are ready.
 	reconcileBK(t, ns, "bk")
 	if d := get(t, ns, "bk", &v1.BookKeeperCluster{}).Status.Decommission; d != nil {
@@ -182,7 +183,6 @@ func TestScaleInDecommissionsOneBookieAtATime(t *testing.T) {
 		t.Fatalf("replicas = %d", n)
 	}
 }
-
 func TestScaleInStopsAtMinReplicas(t *testing.T) {
 	ns := namespace(t)
 	runningBK(t, ns, 2, nil)
@@ -196,7 +196,6 @@ func TestScaleInStopsAtMinReplicas(t *testing.T) {
 		t.Fatalf("replicas = %d", n)
 	}
 }
-
 func storageClass(t *testing.T, name string, expandable bool) *string {
 	t.Helper()
 	sc := &storagev1.StorageClass{ObjectMeta: metav1.ObjectMeta{Name: name}, Provisioner: "example.com/test", AllowVolumeExpansion: ptr.To(expandable)}
@@ -205,7 +204,6 @@ func storageClass(t *testing.T, name string, expandable bool) *string {
 	}
 	return ptr.To(name)
 }
-
 func setStorage(t *testing.T, ns, journal, ledger string) {
 	t.Helper()
 	bk := get(t, ns, "bk", &v1.BookKeeperCluster{})
@@ -215,12 +213,12 @@ func setStorage(t *testing.T, ns, journal, ledger string) {
 		t.Fatal(err)
 	}
 }
-
 func TestStorageExpansion(t *testing.T) {
 	ns := namespace(t)
 	class := storageClass(t, "expandable-"+ns, true)
 	runningBK(t, ns, 2, class)
 	for i := 0; i < 2; i++ {
+		createPod(t, ns, "bk-bookie-"+string(rune('0'+i)))
 		boundPVC(t, ns, "journal-bk-bookie-"+string(rune('0'+i)), "1Gi", class)
 		boundPVC(t, ns, "ledgers-bk-bookie-"+string(rune('0'+i)), "2Gi", class)
 	}
@@ -228,7 +226,6 @@ func TestStorageExpansion(t *testing.T) {
 
 	setStorage(t, ns, "1Gi", "5Gi")
 	reconcileBK(t, ns, "bk")
-
 	for i := 0; i < 2; i++ {
 		pvc := get(t, ns, "ledgers-bk-bookie-"+string(rune('0'+i)), &corev1.PersistentVolumeClaim{})
 		if got := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; got.String() != "5Gi" {
@@ -262,7 +259,6 @@ func TestStorageExpansion(t *testing.T) {
 		t.Fatalf("ledger template = %s", got.String())
 	}
 }
-
 func TestStorageShrinkIsRejected(t *testing.T) {
 	ns := namespace(t)
 	class := storageClass(t, "shrink-"+ns, true)
@@ -284,7 +280,6 @@ func TestStorageShrinkIsRejected(t *testing.T) {
 		t.Fatalf("template changed to %s despite the rejection", got.String())
 	}
 }
-
 func TestStorageExpansionUnsupported(t *testing.T) {
 	ns := namespace(t)
 	class := storageClass(t, "fixed-"+ns, false)
@@ -302,7 +297,6 @@ func TestStorageExpansionUnsupported(t *testing.T) {
 		t.Fatalf("PVC changed to %s", got.String())
 	}
 }
-
 func TestConfigChangeRestartsBookies(t *testing.T) {
 	ns := namespace(t)
 	runningBK(t, ns, 2, nil)
@@ -322,7 +316,6 @@ func TestConfigChangeRestartsBookies(t *testing.T) {
 		t.Fatal("config change did not change the pod template")
 	}
 }
-
 func TestAutoRecoveryCanBeDisabled(t *testing.T) {
 	ns := namespace(t)
 	runningBK(t, ns, 2, nil)

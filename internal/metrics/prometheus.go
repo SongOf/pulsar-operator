@@ -19,7 +19,6 @@ type Prometheus struct {
 	URL  string
 	HTTP *http.Client
 }
-
 // Series is one result series: its labels and points.
 type Series struct {
 	Labels map[string]string
@@ -28,7 +27,6 @@ type Series struct {
 
 // Point is a time (Unix seconds) and a value.
 type Point [2]float64
-
 type apiResponse struct {
 	Status    string `json:"status"`
 	ErrorType string `json:"errorType"`
@@ -42,20 +40,17 @@ type apiResponse struct {
 		} `json:"result"`
 	} `json:"data"`
 }
-
 // Range runs a range query.
 func (p Prometheus) Range(ctx context.Context, query string, start, end time.Time, step time.Duration) ([]Series, error) {
 	q := url.Values{"query": {query}, "start": {unix(start)}, "end": {unix(end)}, "step": {strconv.FormatFloat(step.Seconds(), 'f', -1, 64)}}
 	return p.do(ctx, "/api/v1/query_range", q)
 }
-
 // Instant runs an instant query.
 func (p Prometheus) Instant(ctx context.Context, query string, at time.Time) ([]Series, error) {
 	return p.do(ctx, "/api/v1/query", url.Values{"query": {query}, "time": {unix(at)}})
 }
 
 func unix(t time.Time) string { return strconv.FormatFloat(float64(t.UnixMilli())/1000, 'f', 3, 64) }
-
 func (p Prometheus) do(ctx context.Context, path string, q url.Values) ([]Series, error) {
 	client := p.HTTP
 	if client == nil {
@@ -97,7 +92,6 @@ func (p Prometheus) do(ctx context.Context, path string, q url.Values) ([]Series
 	}
 	return out, nil
 }
-
 // point decodes [time, "value"], dropping NaN and infinities, which JSON cannot carry to the console.
 func point(v []any) (Point, bool) {
 	if len(v) != 2 {

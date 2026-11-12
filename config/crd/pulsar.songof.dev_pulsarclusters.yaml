@@ -410,8 +410,8 @@ spec:
                             - type: integer
                             - type: string
                             description: |-
-                              Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                              decreasing it is refused.
+                              Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                              ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClassName:
@@ -430,8 +430,8 @@ spec:
                             - type: integer
                             - type: string
                             description: |-
-                              Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                              decreasing it is refused.
+                              Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                              ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClassName:
@@ -752,8 +752,8 @@ spec:
                             - type: integer
                             - type: string
                             description: |-
-                              Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                              decreasing it is refused.
+                              Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                              ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClassName:
@@ -1120,8 +1120,8 @@ spec:
                         - type: integer
                         - type: string
                         description: |-
-                          Size of the volume. Increasing it expands the existing PVCs when the StorageClass allows expansion;
-                          decreasing it is refused.
+                          Size of the volume. BookKeeper PVCs can grow when their StorageClass allows expansion.
+                          ZooKeeper and Prometheus storage changes are currently rejected; shrinking is never supported.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       storageClassName:

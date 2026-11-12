@@ -1,0 +1,16 @@
+# EXAMPLE ONLY. Replace node, stable device path, serial and exact byte size
+# with the verified PhysicalDisk inventory. Never apply this blindly.
+apiVersion: storage.diskfleet.io/v1alpha1
+kind: DiskPool
+metadata:
+  name: worker-01-ssd-01
+  labels:
+    storage.diskfleet.io/node: worker-01
+spec:
+  nodeName: worker-01
+  vgName: df_worker01_ssd01
+  approved: false
+  devices:
+    - path: /dev/disk/by-id/REPLACE_WITH_STABLE_DISK_ID
+      serial: REPLACE_WITH_SERIAL
+      sizeBytes: 107374182400

@@ -1,8 +1,0 @@
-.state/
-.venv/
-__pycache__/
-*.pyc
-*.tar.gz
-*.egg-info/
-.env
-.pytest_cache/

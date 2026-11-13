@@ -1,0 +1,414 @@
+{
+  "pools": [
+    {
+      "id": "journal-0",
+      "uid": "uid-journal-0",
+      "node": "worker-0",
+      "vgName": "df_journal_0",
+      "topologyHostname": "host-0",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "journal-1",
+      "uid": "uid-journal-1",
+      "node": "worker-1",
+      "vgName": "df_journal_1",
+      "topologyHostname": "host-1",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "ledger-0",
+      "uid": "uid-ledger-0",
+      "node": "worker-0",
+      "vgName": "df_ledger_0",
+      "topologyHostname": "host-0",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "ledger-1",
+      "uid": "uid-ledger-1",
+      "node": "worker-1",
+      "vgName": "df_ledger_1",
+      "topologyHostname": "host-1",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    }
+  ],
+  "assignments": {
+    "zookeeper": [
+      "journal-0",
+      "journal-1"
+    ],
+    "journal": [
+      "journal-0",
+      "journal-1"
+    ],
+    "ledger": [
+      "ledger-0",
+      "ledger-1"
+    ]
+  },
+  "expected": {
+    "apiVersion": "v1",
+    "kind": "List",
+    "items": [
+      {
+        "apiVersion": "v1",
+        "kind": "Namespace",
+        "metadata": {
+          "name": "diskfleet-pulsar-test",
+          "labels": {
+            "storage.diskfleet.io/integration": "pulsar-two-node-lab",
+            "storage.diskfleet.io/profile": "two-node-lab"
+          }
+        }
+      },
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "diskfleet-pulsar-d7c41c40fa-zookeeper",
+          "labels": {
+            "storage.diskfleet.io/fleet": "true",
+            "storage.diskfleet.io/integration": "pulsar-two-node-lab",
+            "storage.diskfleet.io/profile": "two-node-lab",
+            "storage.diskfleet.io/role": "zookeeper"
+          },
+          "annotations": {
+            "storage.diskfleet.io/pool-uids": "{\"journal-0\":\"uid-journal-0\",\"journal-1\":\"uid-journal-1\"}"
+          }
+        },
+        "provisioner": "local.csi.openebs.io",
+        "parameters": {
+          "storage": "lvm",
+          "vgpattern": "^(df_journal_0|df_journal_1)$",
+          "fsType": "ext4",
+          "thinProvision": "no"
+        },
+        "reclaimPolicy": "Retain",
+        "volumeBindingMode": "WaitForFirstConsumer",
+        "allowVolumeExpansion": true,
+        "allowedTopologies": [
+          {
+            "matchLabelExpressions": [
+              {
+                "key": "kubernetes.io/hostname",
+                "values": [
+                  "host-0",
+                  "host-1"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "diskfleet-pulsar-d7c41c40fa-journal",
+          "labels": {
+            "storage.diskfleet.io/fleet": "true",
+            "storage.diskfleet.io/integration": "pulsar-two-node-lab",
+            "storage.diskfleet.io/profile": "two-node-lab",
+            "storage.diskfleet.io/role": "journal"
+          },
+          "annotations": {
+            "storage.diskfleet.io/pool-uids": "{\"journal-0\":\"uid-journal-0\",\"journal-1\":\"uid-journal-1\"}"
+          }
+        },
+        "provisioner": "local.csi.openebs.io",
+        "parameters": {
+          "storage": "lvm",
+          "vgpattern": "^(df_journal_0|df_journal_1)$",
+          "fsType": "ext4",
+          "thinProvision": "no"
+        },
+        "reclaimPolicy": "Retain",
+        "volumeBindingMode": "WaitForFirstConsumer",
+        "allowVolumeExpansion": true,
+        "allowedTopologies": [
+          {
+            "matchLabelExpressions": [
+              {
+                "key": "kubernetes.io/hostname",
+                "values": [
+                  "host-0",
+                  "host-1"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "diskfleet-pulsar-d7c41c40fa-ledger",
+          "labels": {
+            "storage.diskfleet.io/fleet": "true",
+            "storage.diskfleet.io/integration": "pulsar-two-node-lab",
+            "storage.diskfleet.io/profile": "two-node-lab",
+            "storage.diskfleet.io/role": "ledger"
+          },
+          "annotations": {
+            "storage.diskfleet.io/pool-uids": "{\"ledger-0\":\"uid-ledger-0\",\"ledger-1\":\"uid-ledger-1\"}"
+          }
+        },
+        "provisioner": "local.csi.openebs.io",
+        "parameters": {
+          "storage": "lvm",
+          "vgpattern": "^(df_ledger_0|df_ledger_1)$",
+          "fsType": "ext4",
+          "thinProvision": "no"
+        },
+        "reclaimPolicy": "Retain",
+        "volumeBindingMode": "WaitForFirstConsumer",
+        "allowVolumeExpansion": true,
+        "allowedTopologies": [
+          {
+            "matchLabelExpressions": [
+              {
+                "key": "kubernetes.io/hostname",
+                "values": [
+                  "host-0",
+                  "host-1"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "pulsar.songof.dev/v1alpha1",
+        "kind": "PulsarCluster",
+        "metadata": {
+          "name": "pulsar",
+          "namespace": "diskfleet-pulsar-test",
+          "labels": {
+            "storage.diskfleet.io/integration": "pulsar-two-node-lab",
+            "storage.diskfleet.io/profile": "two-node-lab"
+          },
+          "annotations": {
+            "storage.diskfleet.io/source-revision": "3c042c5",
+            "storage.diskfleet.io/availability": "lab-only-not-host-failure-ha",
+            "storage.diskfleet.io/validation": "three-node-e2e-not-applicable",
+            "storage.diskfleet.io/placement": "Preferred anti-affinity; a 2+1 placement is not guaranteed",
+            "storage.diskfleet.io/capacity-preflight": "Each selected pool fits all 3 replicas; shared ZK/journal >=30Gi, ledger >=64Gi"
+          }
+        },
+        "spec": {
+          "image": "apachepulsar/pulsar:4.0.14",
+          "zookeeper": {
+            "replicas": 3,
+            "pod": {
+              "antiAffinity": "Preferred",
+              "nodeSelector": {
+                "pulsar.songof.dev/two-node": "true"
+              },
+              "tolerations": [
+                {
+                  "key": "node-role.kubernetes.io/control-plane",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                },
+                {
+                  "key": "node-role.kubernetes.io/master",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                }
+              ]
+            },
+            "storage": {
+              "size": "5Gi",
+              "storageClassName": "diskfleet-pulsar-d7c41c40fa-zookeeper"
+            },
+            "jvm": {
+              "heap": "512m"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "200m",
+                "memory": "1Gi"
+              },
+              "limits": {
+                "memory": "2Gi"
+              }
+            }
+          },
+          "bookkeeper": {
+            "replicas": 3,
+            "minReplicas": 3,
+            "pod": {
+              "antiAffinity": "Preferred",
+              "nodeSelector": {
+                "pulsar.songof.dev/two-node": "true"
+              },
+              "tolerations": [
+                {
+                  "key": "node-role.kubernetes.io/control-plane",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                },
+                {
+                  "key": "node-role.kubernetes.io/master",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                }
+              ]
+            },
+            "storage": {
+              "journal": {
+                "size": "5Gi",
+                "storageClassName": "diskfleet-pulsar-d7c41c40fa-journal"
+              },
+              "ledger": {
+                "size": "20Gi",
+                "storageClassName": "diskfleet-pulsar-d7c41c40fa-ledger"
+              },
+              "reclaimPolicy": "Retain"
+            },
+            "jvm": {
+              "heap": "1g",
+              "directMemory": "1g"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "3Gi"
+              },
+              "limits": {
+                "memory": "4Gi"
+              }
+            },
+            "config": {
+              "diskUsageThreshold": "0.90",
+              "diskUsageLwmThreshold": "0.85"
+            },
+            "autoRecovery": {
+              "enabled": true,
+              "replicas": 1,
+              "jvm": {
+                "heap": "256m",
+                "directMemory": "256m"
+              },
+              "resources": {
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "1Gi"
+                },
+                "limits": {
+                  "memory": "2Gi"
+                }
+              },
+              "pod": {
+                "antiAffinity": "Preferred",
+                "nodeSelector": {
+                  "pulsar.songof.dev/two-node": "true"
+                },
+                "tolerations": [
+                  {
+                    "key": "node-role.kubernetes.io/control-plane",
+                    "operator": "Exists",
+                    "effect": "NoSchedule"
+                  },
+                  {
+                    "key": "node-role.kubernetes.io/master",
+                    "operator": "Exists",
+                    "effect": "NoSchedule"
+                  }
+                ]
+              }
+            }
+          },
+          "broker": {
+            "replicas": 2,
+            "pod": {
+              "antiAffinity": "Preferred",
+              "nodeSelector": {
+                "pulsar.songof.dev/two-node": "true"
+              },
+              "tolerations": [
+                {
+                  "key": "node-role.kubernetes.io/control-plane",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                },
+                {
+                  "key": "node-role.kubernetes.io/master",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                }
+              ]
+            },
+            "jvm": {
+              "heap": "1g",
+              "directMemory": "1g"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "3Gi"
+              },
+              "limits": {
+                "memory": "4Gi"
+              }
+            },
+            "config": {
+              "managedLedgerDefaultEnsembleSize": "2",
+              "managedLedgerDefaultWriteQuorum": "2",
+              "managedLedgerDefaultAckQuorum": "2"
+            }
+          },
+          "proxy": {
+            "enabled": true,
+            "replicas": 1,
+            "serviceType": "ClusterIP",
+            "jvm": {
+              "heap": "512m",
+              "directMemory": "512m"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "1536Mi"
+              },
+              "limits": {
+                "memory": "2Gi"
+              }
+            },
+            "pod": {
+              "antiAffinity": "Preferred",
+              "nodeSelector": {
+                "pulsar.songof.dev/two-node": "true"
+              },
+              "tolerations": [
+                {
+                  "key": "node-role.kubernetes.io/control-plane",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                },
+                {
+                  "key": "node-role.kubernetes.io/master",
+                  "operator": "Exists",
+                  "effect": "NoSchedule"
+                }
+              ]
+            }
+          },
+          "monitoring": {
+            "enabled": false
+          }
+        }
+      }
+    ]
+  }
+}

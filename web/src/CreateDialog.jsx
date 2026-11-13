@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { api } from './api.js'
 import { newPulsarCluster } from './model.js'
+import { CLUSTER_NAME_MAX_LENGTH, CLUSTER_NAME_PATTERN, validateClusterName } from './cluster-name.js'
 
 const defaults = {
   name: '', namespace: 'pulsar', image: 'apachepulsar/pulsar:4.0.14',
@@ -19,6 +20,7 @@ export function CreateDialog({ onClose, onCreated }) {
     setBusy(true)
     setError(null)
     try {
+      validateClusterName(f.name)
       await api.create('PulsarCluster', newPulsarCluster(f))
       onCreated(`PulsarCluster/${f.namespace}/${f.name}`)
     } catch (err) {
@@ -32,7 +34,7 @@ export function CreateDialog({ onClose, onCreated }) {
         <h2>新建 Pulsar 集群</h2>
         <p className="muted">控制器创建关联的 BookKeeper 集群；创建后，Broker 与 Bookie 在各自组件页面管理。</p>
         <div className="grid2">
-          {field('name', 'Name', 'text', { required: true, pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?', autoFocus: true })}
+          {field('name', 'Name（最多 47 字符，以字母开头）', 'text', { required: true, maxLength: CLUSTER_NAME_MAX_LENGTH, pattern: CLUSTER_NAME_PATTERN, autoFocus: true })}
           {field('namespace', 'Namespace (must exist)', 'text', { required: true })}
           {field('image', 'Image')}
         </div>

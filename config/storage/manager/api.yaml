@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: diskfleet-api
+  namespace: diskfleet-system
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: diskfleet-api}
+  template:
+    metadata:
+      labels: {app: diskfleet-api}
+    spec:
+      serviceAccountName: diskfleet-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: diskfleet:dev
+          imagePullPolicy: IfNotPresent
+          command: [/usr/local/bin/diskfleet-api]
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: MODE, value: cluster}
+            - {name: API_HOST, value: 0.0.0.0}
+            - {name: API_PORT, value: '8080'}
+            - {name: STATE_DIR, value: /var/lib/diskfleet-api}
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef: {name: diskfleet-api-token, key: token}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: '1', memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/diskfleet-api}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: diskfleet-api-state
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: diskfleet-api
+  namespace: diskfleet-system
+spec:
+  selector: {app: diskfleet-api}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+  type: ClusterIP

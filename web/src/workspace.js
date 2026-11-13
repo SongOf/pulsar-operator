@@ -24,7 +24,7 @@ function parentOf(bookkeeper, parents) {
   for (const ref of owners) {
     if (!pulsarReference(ref)) continue
     const parent = parents.get(`PulsarCluster/${bookkeeper.metadata.namespace}/${ref.name}`)
-    // ChildBookKeeper in internal/resources/pulsar.go reconciles only the child
+    // ChildBookKeeper in internal/pulsar/resources/pulsar.go reconciles only the child
     // sharing the parent's name. A differently named owned object cannot be
     // edited through that parent because those writes would affect another BK.
     if (parent && bookkeeper.metadata.name === parent.metadata.name &&

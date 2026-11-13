@@ -1,0 +1,324 @@
+{
+  "pools": [
+    {
+      "id": "journal-0",
+      "uid": "uid-journal-0",
+      "node": "worker-0",
+      "vgName": "df_journal_0",
+      "topologyHostname": "host-0",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "journal-1",
+      "uid": "uid-journal-1",
+      "node": "worker-1",
+      "vgName": "df_journal_1",
+      "topologyHostname": "host-1",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "journal-2",
+      "uid": "uid-journal-2",
+      "node": "worker-2",
+      "vgName": "df_journal_2",
+      "topologyHostname": "host-2",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "ledger-0",
+      "uid": "uid-ledger-0",
+      "node": "worker-0",
+      "vgName": "df_ledger_0",
+      "topologyHostname": "host-0",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "ledger-1",
+      "uid": "uid-ledger-1",
+      "node": "worker-1",
+      "vgName": "df_ledger_1",
+      "topologyHostname": "host-1",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    },
+    {
+      "id": "ledger-2",
+      "uid": "uid-ledger-2",
+      "node": "worker-2",
+      "vgName": "df_ledger_2",
+      "topologyHostname": "host-2",
+      "state": "Ready",
+      "availableBytes": 107374182400,
+      "capacityBytes": 107374182400
+    }
+  ],
+  "assignments": {
+    "zookeeper": [
+      "journal-0",
+      "journal-1",
+      "journal-2"
+    ],
+    "journal": [
+      "journal-0",
+      "journal-1",
+      "journal-2"
+    ],
+    "ledger": [
+      "ledger-0",
+      "ledger-1",
+      "ledger-2"
+    ]
+  },
+  "expected": {
+    "apiVersion": "v1",
+    "kind": "List",
+    "items": [
+      {
+        "apiVersion": "v1",
+        "kind": "Namespace",
+        "metadata": {
+          "name": "diskfleet-pulsar-test",
+          "labels": {
+            "storage.diskfleet.io/integration": "pulsar"
+          }
+        }
+      },
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "diskfleet-pulsar-2134316683-zookeeper",
+          "labels": {
+            "storage.diskfleet.io/fleet": "true",
+            "storage.diskfleet.io/integration": "pulsar",
+            "storage.diskfleet.io/role": "zookeeper"
+          },
+          "annotations": {
+            "storage.diskfleet.io/pool-uids": "{\"journal-0\":\"uid-journal-0\",\"journal-1\":\"uid-journal-1\",\"journal-2\":\"uid-journal-2\"}"
+          }
+        },
+        "provisioner": "local.csi.openebs.io",
+        "parameters": {
+          "storage": "lvm",
+          "vgpattern": "^(df_journal_0|df_journal_1|df_journal_2)$",
+          "fsType": "ext4",
+          "thinProvision": "no"
+        },
+        "reclaimPolicy": "Retain",
+        "volumeBindingMode": "WaitForFirstConsumer",
+        "allowVolumeExpansion": true,
+        "allowedTopologies": [
+          {
+            "matchLabelExpressions": [
+              {
+                "key": "kubernetes.io/hostname",
+                "values": [
+                  "host-0",
+                  "host-1",
+                  "host-2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "diskfleet-pulsar-2134316683-journal",
+          "labels": {
+            "storage.diskfleet.io/fleet": "true",
+            "storage.diskfleet.io/integration": "pulsar",
+            "storage.diskfleet.io/role": "journal"
+          },
+          "annotations": {
+            "storage.diskfleet.io/pool-uids": "{\"journal-0\":\"uid-journal-0\",\"journal-1\":\"uid-journal-1\",\"journal-2\":\"uid-journal-2\"}"
+          }
+        },
+        "provisioner": "local.csi.openebs.io",
+        "parameters": {
+          "storage": "lvm",
+          "vgpattern": "^(df_journal_0|df_journal_1|df_journal_2)$",
+          "fsType": "ext4",
+          "thinProvision": "no"
+        },
+        "reclaimPolicy": "Retain",
+        "volumeBindingMode": "WaitForFirstConsumer",
+        "allowVolumeExpansion": true,
+        "allowedTopologies": [
+          {
+            "matchLabelExpressions": [
+              {
+                "key": "kubernetes.io/hostname",
+                "values": [
+                  "host-0",
+                  "host-1",
+                  "host-2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "diskfleet-pulsar-2134316683-ledger",
+          "labels": {
+            "storage.diskfleet.io/fleet": "true",
+            "storage.diskfleet.io/integration": "pulsar",
+            "storage.diskfleet.io/role": "ledger"
+          },
+          "annotations": {
+            "storage.diskfleet.io/pool-uids": "{\"ledger-0\":\"uid-ledger-0\",\"ledger-1\":\"uid-ledger-1\",\"ledger-2\":\"uid-ledger-2\"}"
+          }
+        },
+        "provisioner": "local.csi.openebs.io",
+        "parameters": {
+          "storage": "lvm",
+          "vgpattern": "^(df_ledger_0|df_ledger_1|df_ledger_2)$",
+          "fsType": "ext4",
+          "thinProvision": "no"
+        },
+        "reclaimPolicy": "Retain",
+        "volumeBindingMode": "WaitForFirstConsumer",
+        "allowVolumeExpansion": true,
+        "allowedTopologies": [
+          {
+            "matchLabelExpressions": [
+              {
+                "key": "kubernetes.io/hostname",
+                "values": [
+                  "host-0",
+                  "host-1",
+                  "host-2"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "pulsar.songof.dev/v1alpha1",
+        "kind": "PulsarCluster",
+        "metadata": {
+          "name": "pulsar",
+          "namespace": "diskfleet-pulsar-test",
+          "labels": {
+            "storage.diskfleet.io/integration": "pulsar"
+          },
+          "annotations": {
+            "storage.diskfleet.io/source-revision": "3c042c5"
+          }
+        },
+        "spec": {
+          "image": "apachepulsar/pulsar:4.0.14",
+          "zookeeper": {
+            "replicas": 3,
+            "pod": {
+              "antiAffinity": "Required"
+            },
+            "storage": {
+              "size": "5Gi",
+              "storageClassName": "diskfleet-pulsar-2134316683-zookeeper"
+            },
+            "jvm": {
+              "heap": "512m"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "200m",
+                "memory": "1Gi"
+              },
+              "limits": {
+                "memory": "2Gi"
+              }
+            }
+          },
+          "bookkeeper": {
+            "replicas": 3,
+            "minReplicas": 3,
+            "pod": {
+              "antiAffinity": "Required"
+            },
+            "storage": {
+              "journal": {
+                "size": "5Gi",
+                "storageClassName": "diskfleet-pulsar-2134316683-journal"
+              },
+              "ledger": {
+                "size": "20Gi",
+                "storageClassName": "diskfleet-pulsar-2134316683-ledger"
+              },
+              "reclaimPolicy": "Retain"
+            },
+            "jvm": {
+              "heap": "1g",
+              "directMemory": "1g"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "3Gi"
+              },
+              "limits": {
+                "memory": "4Gi"
+              }
+            },
+            "config": {
+              "diskUsageThreshold": "0.90",
+              "diskUsageLwmThreshold": "0.85"
+            }
+          },
+          "broker": {
+            "replicas": 2,
+            "pod": {
+              "antiAffinity": "Preferred"
+            },
+            "jvm": {
+              "heap": "1g",
+              "directMemory": "1g"
+            },
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "3Gi"
+              },
+              "limits": {
+                "memory": "4Gi"
+              }
+            },
+            "config": {
+              "managedLedgerDefaultEnsembleSize": "2",
+              "managedLedgerDefaultWriteQuorum": "2",
+              "managedLedgerDefaultAckQuorum": "2"
+            }
+          },
+          "proxy": {
+            "enabled": true,
+            "replicas": 1,
+            "serviceType": "ClusterIP",
+            "jvm": {
+              "heap": "512m",
+              "directMemory": "512m"
+            }
+          },
+          "monitoring": {
+            "enabled": false
+          }
+        }
+      }
+    ]
+  }
+}

@@ -43,6 +43,7 @@ function preconditions(metadata) {
 }
 export const api = {
   list: () => call('GET', '/api/clusters'),
+  audit: (filters = {}, cursor = 0) => call('GET', '/api/audit?' + new URLSearchParams({ ...filters, cursor, limit: 50 })),
   create: (kind, obj) => call('POST', `/api/${kindPath[kind]}`, obj),
   patch: (kind, ns, name, spec, expected) => call('PATCH', base(kind, ns, name), { spec }, preconditions(expected)),
   remove: (kind, ns, name, expected) => call('DELETE', base(kind, ns, name), undefined, preconditions(expected)),

@@ -1,9 +1,0 @@
-{
-  "date": "2026-11-13",
-  "tests": 101,
-  "failures": 0,
-  "errors": 0,
-  "skipped": 0,
-  "success": true,
-  "scope": "Local Python regressions, Pulsar source-contract compatibility, fake Kubernetes API and in-memory HTTP; not a live cluster test"
-}

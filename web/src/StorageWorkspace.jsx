@@ -1,19 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import './storage-workspace.css'
 
-export const STORAGE_PAGES = [
-  { key: 'overview', label: '存储总览' },
-  { key: 'nodes', label: '物理节点' },
-  { key: 'disks', label: '物理磁盘' },
-  { key: 'pools', label: '存储池' },
-  { key: 'volumes', label: 'PV / PVC' },
-  { key: 'events', label: '操作审计' },
-  { key: 'guide', label: '接盘指南' },
-]
-
-export function isStoragePage(value) {
-  return STORAGE_PAGES.some(item => item.key === value)
-}
+import { STORAGE_PAGES, isStoragePage } from './routes.js'
+export { STORAGE_PAGES, isStoragePage } from './routes.js'
 
 // Return only the small, non-sensitive protocol fields understood by the shell.
 export function readStorageMessage(event, frameWindow, origin) {

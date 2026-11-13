@@ -23,24 +23,43 @@ jobs:
         with:
           python-version: '3.12'
       - name: Go static checks
-        run: go vet ./...
-      - name: All modules
-        run: make test
+        run: go vet -tags="integration systemintegration" ./...
+      - name: Initialize development dependencies
+        run: make init ARGS=--integration
+      - name: Module and shared unit tests
+        run: make test-unit
+      - name: Module integration tests
+        run: make test-integration
+      - name: System integration tests
+        run: make test-system
+      - name: Build Go entrypoints
+        run: make build
       - name: Render unified deployment
-        run: kubectl kustomize deploy/all > /tmp/pulsar-operator.yaml
+        run: bash scripts/dev.sh render > /tmp/pulsar-operator.yaml
   images:
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - name: Build Pulsar image
+        uses: docker/build-push-action@v6
         with:
           context: .
+          file: modules/pulsar/Dockerfile
           push: false
           tags: pulsar-operator:ci
-      - uses: docker/build-push-action@v6
+      - name: Build Storage image
+        uses: docker/build-push-action@v6
         with:
-          context: modules/storage
+          context: .
+          file: modules/storage/Dockerfile
           push: false
           tags: pulsar-operator-storage:ci
+      - name: Build Agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: modules/agent/Dockerfile
+          push: false
+          tags: pulsar-operator-agent:ci

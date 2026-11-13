@@ -1,5 +1,6 @@
+# All project CRDs. Each module also provides its own CRD base.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - pulsar.songof.dev_pulsarclusters.yaml
-  - pulsar.songof.dev_bookkeeperclusters.yaml
+  - ../pulsar/crd
+  - ../storage/crd

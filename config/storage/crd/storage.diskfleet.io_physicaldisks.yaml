@@ -1,0 +1,52 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: physicaldisks.storage.diskfleet.io
+spec:
+  group: storage.diskfleet.io
+  scope: Cluster
+  names:
+    plural: physicaldisks
+    singular: physicaldisk
+    kind: PhysicalDisk
+    shortNames: [pdisk]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - {name: Node, type: string, jsonPath: .spec.nodeName}
+        - {name: State, type: string, jsonPath: .status.phase}
+        - {name: Bytes, type: integer, jsonPath: .spec.sizeBytes}
+        - {name: Device, type: string, jsonPath: .spec.path}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [nodeName, path, serial, sizeBytes, model, media]
+              x-kubernetes-validations:
+                - rule: self == oldSelf
+                  message: PhysicalDisk identity is immutable; investigate device replacement explicitly.
+              properties:
+                nodeName: {type: string, minLength: 1, maxLength: 253}
+                path: {type: string, minLength: 1, maxLength: 512}
+                serial: {type: string, maxLength: 256}
+                sizeBytes: {type: integer, format: int64, minimum: 0}
+                model: {type: string, maxLength: 256}
+                media: {type: string, maxLength: 32}
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Available, Managed, Protected, Offline]
+                reasons:
+                  type: array
+                  maxItems: 32
+                  items: {type: string, maxLength: 2048}
+                poolName: {type: string, maxLength: 253}

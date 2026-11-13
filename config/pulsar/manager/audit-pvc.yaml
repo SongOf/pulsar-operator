@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pulsar-operator-audit
+  namespace: pulsar-operator-system
+spec:
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  # Select an existing infrastructure StorageClass through an overlay if needed.
+  resources:
+    requests:
+      storage: 1Gi

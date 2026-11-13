@@ -1,0 +1,96 @@
+{
+  "image": "apachepulsar/pulsar:4.0.14",
+  "zookeeper": {
+    "replicas": 3,
+    "pod": {
+      "antiAffinity": "Required"
+    },
+    "storage": {
+      "size": "5Gi",
+      "storageClassName": ""
+    },
+    "jvm": {
+      "heap": "512m"
+    },
+    "resources": {
+      "requests": {
+        "cpu": "200m",
+        "memory": "1Gi"
+      },
+      "limits": {
+        "memory": "2Gi"
+      }
+    }
+  },
+  "bookkeeper": {
+    "replicas": 3,
+    "minReplicas": 3,
+    "pod": {
+      "antiAffinity": "Required"
+    },
+    "storage": {
+      "journal": {
+        "size": "5Gi",
+        "storageClassName": ""
+      },
+      "ledger": {
+        "size": "20Gi",
+        "storageClassName": ""
+      },
+      "reclaimPolicy": "Retain"
+    },
+    "jvm": {
+      "heap": "1g",
+      "directMemory": "1g"
+    },
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "3Gi"
+      },
+      "limits": {
+        "memory": "4Gi"
+      }
+    },
+    "config": {
+      "diskUsageThreshold": "0.90",
+      "diskUsageLwmThreshold": "0.85"
+    }
+  },
+  "broker": {
+    "replicas": 2,
+    "pod": {
+      "antiAffinity": "Preferred"
+    },
+    "jvm": {
+      "heap": "1g",
+      "directMemory": "1g"
+    },
+    "resources": {
+      "requests": {
+        "cpu": "500m",
+        "memory": "3Gi"
+      },
+      "limits": {
+        "memory": "4Gi"
+      }
+    },
+    "config": {
+      "managedLedgerDefaultEnsembleSize": "2",
+      "managedLedgerDefaultWriteQuorum": "2",
+      "managedLedgerDefaultAckQuorum": "2"
+    }
+  },
+  "proxy": {
+    "enabled": true,
+    "replicas": 1,
+    "serviceType": "ClusterIP",
+    "jvm": {
+      "heap": "512m",
+      "directMemory": "512m"
+    }
+  },
+  "monitoring": {
+    "enabled": false
+  }
+}

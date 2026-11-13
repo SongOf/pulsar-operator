@@ -1,8 +1,10 @@
 .git
+bin
 **/node_modules
 **/dist
 **/__pycache__
 **/.state
+**/.venv
 artifacts
 *.tar.gz
 *.token

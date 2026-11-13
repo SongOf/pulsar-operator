@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Standalone storage management and its Go node Agent, without Pulsar.
+resources:
+  - ../../../config/storage/default
+  - ../../../config/agent/default
+images:
+  - name: diskfleet
+    newName: pulsar-operator-storage
+    newTag: dev
+  - name: diskfleet-agent
+    newName: pulsar-operator-agent
+    newTag: dev

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: diskfleet-api-state
+  namespace: diskfleet-system
+spec:
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  # Use an existing infrastructure StorageClass (or a pre-provisioned PV).
+  # Omitted storageClassName selects the cluster default; override in an overlay.
+  resources:
+    requests:
+      storage: 1Gi

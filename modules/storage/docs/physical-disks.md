@@ -70,7 +70,8 @@ Agent 同时检查 `/proc/1/mountinfo`、`/proc/swaps`、`/sys/class/block/*/hol
 2. 在前端或 `kubectl get physicaldisks -o yaml` 中核对节点、by-id、序列号、容量和保护原因。
 3. 前端生成接管计划，查看每块设备、容量和命令后勾选确认；API 提交时同时校验计划 ID 与确认文本。也可以基于 [`config/storage/samples/diskpool.yaml`](../../../config/storage/samples/diskpool.yaml) 创建 `approved: false` 的 DiskPool。
 4. 实际初始化前，在部署配置中明确开启 `ENABLE_DISK_WRITES=true`，再批准已经核实的 DiskPool。两项条件缺少任一项都不会初始化磁盘。下面的 DaemonSet 环境变量命令作用于所有已启用节点；执行前必须审查这些节点所有已批准但未执行的池，防止积压请求同时开始。分批上线时先用节点标签限定本批范围。
-5. 查看 DiskPool 状态；只有 `Ready` 才表示 VG 和该池的 StorageClass 已就绪。CSI 驱动是否可用仍需实际 PVC/Pod 验证。
+5. 等待 Agent 在自有临时 LV 上完成单盘压测并核验清理，在池详情查看吞吐、IOPS、延迟和错误，人工通过或拒绝结果。初始化批准不等于容量分配批准。
+6. 审核通过后等待 `Ready`，表示 Agent 已复核结果并发布该池的 StorageClass。压测/清理失败或审核拒绝时不能新分配；CSI 驱动是否可用仍需实际 PVC/Pod 验证。固定 1 GiB、四项各 30 秒是短时采样，参数与恢复限制见 [Agent 设计](../../agent/docs/design.md)。
 
 管理命令示例中的对象名应替换为现场已核实的值：
 
@@ -94,7 +95,7 @@ kubectl get diskpool worker-01-ssd-01 -o yaml
 
 ## 4. 从磁盘池到容器挂载
 
-Operator 为池创建带节点约束的 StorageClass，配置 `local.csi.openebs.io`、`WaitForFirstConsumer`、`Retain` 和 `allowVolumeExpansion: true`。先创建 PVC，直到存在使用它的 Pod 才会选择节点并分配。不要把“没有消费者时 PVC Pending”当成故障，也不要用 `spec.nodeName` 绕过调度器；需要限定节点时使用节点选择器或 affinity。
+Agent 在压测结果经人工审核通过后，为池创建带节点约束的 StorageClass，配置 `local.csi.openebs.io`、`WaitForFirstConsumer`、`Retain` 和 `allowVolumeExpansion: true`。先创建 PVC，直到存在使用它的 Pod 才会选择节点并分配。不要把“没有消费者时 PVC Pending”当成故障，也不要用 `spec.nodeName` 绕过调度器；需要限定节点时使用节点选择器或 affinity。
 
 CSI 在已纳管 VG 中创建 LV，首次供文件系统卷使用时创建 ext4，并通过 kubelet 的卷挂载流程将它提供给容器。Pod 只需要声明 PVC 和 `volumeMounts`，示例见 [`config/storage/samples/workload.yaml`](../../../config/storage/samples/workload.yaml)。该示例的 StorageClass 必须改为对应池真实生成的类名。
 

@@ -51,7 +51,7 @@ docker push "$REGISTRY/pulsar-operator-storage:$RELEASE"
 docker push "$REGISTRY/pulsar-operator-agent:$RELEASE"
 ```
 
-Pulsar 镜像同时包含 Go Operator 和构建后的 React 页面；存储镜像包含 Go API 和嵌入的存储前端，独立 Agent 镜像包含 Go 二进制与 LVM/设备工具。仅使用上游旧镜像不会包含这次集成。部署引用应记录准确 tag 或 digest。需要鉴权的仓库应先为两个命名空间配置对应 imagePullSecret；不要在仓库提交凭证。
+Pulsar 镜像同时包含 Go Operator 和构建后的 React 页面；存储镜像包含 Go API 和同一套 React 构建产物，独立 Agent 镜像包含 Go 二进制与 LVM/设备工具。仅使用上游旧镜像不会包含这次集成。部署引用应记录准确 tag 或 digest。需要鉴权的仓库应先为两个命名空间配置对应 imagePullSecret；不要在仓库提交凭证。
 
 离线方式可在构建机 `docker save` 三份镜像后传到两节点，分别执行 `ctr -n k8s.io images import /path/to/images.tar`；清单 image 名称必须与导入名称一致。还需提前提供 Pulsar、nginx 和 CSI 的依赖镜像。仅导入控制平面一台会使另一个节点 `ImagePullBackOff`。本次实际使用独立 BuildKit 构建 OCI 镜像，并导入两节点现有 containerd 的 `k8s.io` namespace；没有安装 Docker 或覆盖 Kubernetes 使用的 containerd。镜像版本和最终验证见[验证报告](../history/validation.md)。
 

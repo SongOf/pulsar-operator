@@ -24,8 +24,8 @@
 - HTTP 层统一命名为 `httpapi`。Agent 当前没有 HTTP 服务，通过 Kubernetes 资源与 Storage 协作；不要为了目录对齐创建空 API 层。
 - `internal/kubeconfig` 是 Storage/Agent 的共享连接配置。Pulsar 使用 controller-runtime 的启动与连接机制，不假定三者自动采用相同 kubeconfig 行为。
 - Pulsar 的生命周期逻辑属于控制器，工作负载构造属于 `resources`；Storage 不接管 Pulsar 控制器职责。
-- 生产设备发现及 LVM 操作属于 Agent；API、前端和规划器不得绕过 Agent 直接操作宿主磁盘。CSI 负责业务 LV、文件系统、挂载和扩容。
-- 公用前端保留在 `web`：`src` 为 React 外壳与 Pulsar 页面，`storage/static` 为 Storage 页面，`storage/assets.go` 提供 Go 嵌入资源。
+- 生产设备发现及 LVM 操作属于 Agent；API、前端和规划器不得绕过 Agent 直接操作宿主磁盘。Agent 仅可按固定配置创建自有临时 LV 做单盘压测，验证清理并持久化结果；CSI 负责业务 LV、文件系统、挂载和扩容。
+- 公用前端保留在 `web/src`，Pulsar 与 Storage 使用同一套 React 导航、页面和 `web/dist` 构建产物；两个 API 镜像均交付该产物，不另建存储静态页面或 iframe 工作区。
 - Python 标准库测试、部署辅助和实验探针可以保留；不要仅因语言不同删除仍在使用的辅助工具。
 
 ## 目录职责
@@ -80,8 +80,10 @@ scripts/deploy/render.sh all
 - 受管 BookKeeper 的副本、镜像、配置和容量变更写父 PulsarCluster；关系异常时保持只读，不凭同名或单个标签自动接管。
 - Storage 对外部 Operator 所有的 PVC 保持只读，所有权限制同时在 API 和 UI 执行。保留 Retain、拓扑校验、释放意图及重试身份约束。
 - Agent 的真实写入须同时满足写盘开关与批准状态，并通过设备身份核验、宿主锁和恢复日志；不能跳过系统盘/占用保护，也不能凭 VG 名称认领已有数据。
+- 磁盘初始化批准与容量分配审核分离。新池须完成临时 LV 压测、确认清理并取得绑定池 UID/运行 ID/结果摘要的人工审核，才可发布 StorageClass 或进入 API/fleet 新卷分配；不能仅凭 Ready 放行。已有业务池不自动补写压测，保留旧卷观察、扩容和 Retain。部署应限制 StorageClass 管理权限，避免外建宽泛 VG 选择器绕过该契约。
 - 保持已有 API group/version、JSON 字段、资源名称算法、finalizer、SQLite 和设备日志格式兼容。需要破坏性变更时明确迁移与回退方案，补充针对性验证。
-- Pulsar/Storage 前端保持独立凭证；同时支持 Storage 根路径和 `/storage/`。iframe 消息校验 origin/source 和协议字段，不传 Token，不把 iframe 加载完成当作 API 就绪。
+- Pulsar/Storage 前端保持独立凭证和请求生命周期；同时支持 Storage 根路径和 `/storage/`。Storage 独立服务通过无秘密的页面元数据声明 API 位置；只接受同源 API 地址，不将 Storage 凭证发送给 Pulsar，或反向发送。
+- 节点启用只通过带 UID/resourceVersion 前置条件的标签更新触发现有 Agent DaemonSet，不开启写盘开关。接管计划与创建 DiskPool 都须复核节点健康、Agent 就绪、磁盘身份/可用性以及成功扫描有效期；缺失、过期或属于旧 Node UID 的库存不可用于批准。
 - Pulsar 用户写操作与控制器关键动作通过审计客户端执行；先持久化意图，完成后记录结果。不要绕过审计客户端，不记录 Token、任意配置值或可能回显秘密的错误正文。普通观察与无变化的调谐不刷审计。
 - 管理状态使用各模块独立 PVC，单副本 Recreate；不要将 SQLite WAL 数据放到临时目录或 NFS。
 - 区分请求接受、资源创建、PVC Bound、文件系统扩容完成等阶段；demo 行为不得标为真实磁盘能力。

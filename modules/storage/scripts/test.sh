@@ -5,7 +5,7 @@ action=${1:-help}
 if [[ $# -gt 0 ]]; then shift; fi
 case "$action" in
   help|-h|--help) printf '%s\n' 'Usage: test.sh {unit|integration|e2e|all}; e2e requires a dedicated real cluster' ;;
-  unit) repo go test ./api/storage/... ./internal/storage/... ./cmd/storage-api/... ./cmd/storage-plan/... ./cmd/storage-benchmark/... ./web/storage/... -count=1 "$@" ;;
+  unit) repo go test ./api/storage/... ./internal/storage/... ./cmd/storage-api/... ./cmd/storage-plan/... ./cmd/storage-benchmark/... -count=1 "$@" ;;
   integration) repo go test ./test/integration/storage/... -count=1 "$@"
     go_build diskfleet-api storage-api
     repo node web/scripts/check-storage-ui.cjs

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/SongOf/pulsar-operator/internal/storage/model"
 	"github.com/SongOf/pulsar-operator/internal/storage/store"
@@ -43,12 +44,18 @@ func newFixture(t *testing.T) *fixture {
 	}
 	t.Cleanup(func() { _ = local.Close() })
 	pool := rawPool("pool-one", "pool-uid", "worker-01", "df_one", "SER001", "/dev/disk/by-id/wwn-one")
-	disk := object{"apiVersion": "storage.diskfleet.io/v1alpha1", "kind": "PhysicalDisk", "metadata": object{"name": "disk-one", "uid": "disk-uid", "resourceVersion": "1"}, "spec": object{"nodeName": "worker-01", "path": "/dev/disk/by-id/wwn-one", "serial": "SER001", "sizeBytes": int64(100 * model.GiB), "model": "test", "media": "SSD"}, "status": object{"phase": "Available", "poolName": ""}}
-	node := object{"apiVersion": "v1", "kind": "Node", "metadata": object{"name": "worker-01", "labels": object{label + "enabled": "true", "topology.kubernetes.io/zone": "az-1"}}, "status": object{"conditions": []any{object{"type": "Ready", "status": "True"}}}}
-	client := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{poolsResource: "DiskPoolList", disksResource: "PhysicalDiskList", classesResource: "StorageClassList", pvcsResource: "PersistentVolumeClaimList", pvsResource: "PersistentVolumeList", nodesResource: "NodeList"},
+	disk := object{"apiVersion": "storage.diskfleet.io/v1alpha1", "kind": "PhysicalDisk", "metadata": object{"name": "disk-one", "uid": "disk-uid", "resourceVersion": "1"}, "spec": object{"nodeName": "worker-01", "path": "/dev/disk/by-id/wwn-one", "serial": "SER001", "sizeBytes": int64(100 * model.GiB), "model": "test", "media": "SSD"}, "status": object{"phase": "Available", "poolName": "", "nodeUID": "node-uid", "lastObservedTime": time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano), "validUntil": time.Now().UTC().Add(35 * time.Second).Format(time.RFC3339Nano)}}
+	node := object{"apiVersion": "v1", "kind": "Node", "metadata": object{"name": "worker-01", "uid": "node-uid", "resourceVersion": "1", "labels": object{label + "enabled": "true", "kubernetes.io/os": "linux", "topology.kubernetes.io/zone": "az-1"}}, "status": object{"conditions": []any{object{"type": "Ready", "status": "True"}}}}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{poolsResource: "DiskPoolList", disksResource: "PhysicalDiskList", classesResource: "StorageClassList", pvcsResource: "PersistentVolumeClaimList", pvsResource: "PersistentVolumeList", nodesResource: "NodeList", podsResource: "PodList", daemonsetsResource: "DaemonSetList"},
 		&unstructured.Unstructured{Object: pool}, &unstructured.Unstructured{Object: disk}, &unstructured.Unstructured{Object: storageClass(pool, "worker-01")}, &unstructured.Unstructured{Object: node})
 	f := &fixture{t: t, root: root, store: local, client: client}
+	benchmarkFixture(pool, "node-uid")
+	if err := client.Tracker().Update(poolsResource, &unstructured.Unstructured{Object: pool}, ""); err != nil {
+		t.Fatal(err)
+	}
 	f.cluster = New(local, client)
+	f.put(daemonsetsResource, testAgentDaemonSet())
+	f.put(podsResource, testAgentPod("worker-01"))
 	client.PrependReactor("create", "*", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		obj := action.(k8stesting.CreateAction).GetObject().(*unstructured.Unstructured)
 		if obj.GetUID() == "" {
@@ -299,7 +306,8 @@ func (f *fixture) fleetVolume() object {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	sc, err := FleetStorageClass("diskfleet-fleet", page.Items)
+	rendered, err := fleetStorageClass("diskfleet-fleet", page.Items)
+	sc := &unstructured.Unstructured{Object: rendered}
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -723,6 +731,10 @@ func TestQuantityAndLongNodeNaming(t *testing.T) {
 	node := strings.Repeat("a", 60) + "." + strings.Repeat("b", 60)
 	disk := f.get(disksResource, "", "disk-one")
 	asObject(disk["spec"])["nodeName"] = node
+	rawNode := f.get(nodesResource, "", "worker-01")
+	asObject(rawNode["metadata"])["name"] = node
+	f.put(nodesResource, rawNode)
+	f.put(podsResource, testAgentPod(node))
 	f.put(disksResource, disk)
 	plan, err := f.cluster.Plan(context.Background(), object{"name": "long-node", "node": node, "diskIds": []any{"disk-one"}})
 	if err != nil {

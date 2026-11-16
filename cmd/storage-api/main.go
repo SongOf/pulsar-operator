@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -22,13 +23,12 @@ import (
 	"github.com/SongOf/pulsar-operator/internal/storage/httpapi"
 	"github.com/SongOf/pulsar-operator/internal/storage/model"
 	"github.com/SongOf/pulsar-operator/internal/storage/store"
-	storageweb "github.com/SongOf/pulsar-operator/web/storage"
 	"k8s.io/client-go/dynamic"
 )
 
 type options struct {
-	host, port, mode, stateDir, token string
-	snapshot                          bool
+	host, port, mode, stateDir, token, uiDir string
+	snapshot                                 bool
 }
 
 func main() {
@@ -47,6 +47,7 @@ func parseOptions(args []string) (options, error) {
 	flags.StringVar(&opts.port, "port", env("API_PORT", "8080"), "HTTP listen port")
 	flags.StringVar(&opts.mode, "mode", env("MODE", "demo"), "demo or cluster")
 	flags.StringVar(&opts.stateDir, "state-dir", env("STATE_DIR", ".state"), "plans, audit and demo state directory")
+	flags.StringVar(&opts.uiDir, "ui-dir", env("WEB_DIR", "web/dist"), "shared console build directory")
 	flags.BoolVar(&opts.snapshot, "snapshot", false, "emit a seeded demo JSON snapshot without opening a listening socket")
 	if err := flags.Parse(args); err != nil {
 		return opts, err
@@ -103,9 +104,17 @@ func run(ctx context.Context, args []string, output io.Writer, serveHTTP func(co
 		}
 		return json.NewEncoder(output).Encode(value)
 	}
+	var static fs.FS
+	root, err := os.OpenRoot(opts.uiDir)
+	if err == nil {
+		defer root.Close()
+		static = root.FS()
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("open console build: %w", err)
+	}
 	server := &http.Server{
 		Addr:              net.JoinHostPort(opts.host, opts.port),
-		Handler:           (&httpapi.Server{Mode: opts.mode, Token: opts.token, Backend: backend, Static: storageweb.FS}).Handler(),
+		Handler:           (&httpapi.Server{Mode: opts.mode, Token: opts.token, Backend: backend, Static: static}).Handler(),
 		ReadHeaderTimeout: 15 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

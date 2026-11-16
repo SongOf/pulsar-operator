@@ -77,10 +77,11 @@ func run() error {
 	}
 	writesEnabled := strings.EqualFold(os.Getenv("ENABLE_DISK_WRITES"), "true")
 	backend := &lvm.Backend{StateDir: *state, Inventory: discoverer.Discover, WritesEnabled: writesEnabled}
+	reconcileInterval := time.Duration(seconds) * time.Second
 	reconciler := &controller.Reconciler{Client: client, Backend: backend, Discover: discoverer.Discover,
-		NodeName: *node, WritesEnabled: writesEnabled, Logger: logger}
+		NodeName: *node, WritesEnabled: writesEnabled, Logger: logger, ReconcileInterval: reconcileInterval}
 	logger.Info("starting node agent", "node", *node, "writesEnabled", writesEnabled, "intervalSeconds", max(seconds, 10))
-	return reconciler.Run(ctx, time.Duration(seconds)*time.Second)
+	return reconciler.Run(ctx, reconcileInterval)
 }
 
 func env(name, fallback string) string {

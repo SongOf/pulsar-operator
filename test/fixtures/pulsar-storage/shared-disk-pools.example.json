@@ -10,7 +10,98 @@
       "topologyHostname": "example-host-a",
       "state": "Ready",
       "capacityBytes": 107374182400,
-      "availableBytes": 107369988096
+      "availableBytes": 107369988096,
+      "nodeUID": "EXAMPLE-node-uid-example-lab-node-a",
+      "devices": [
+        {
+          "path": "/dev/disk/by-id/EXAMPLE-shared-lab-a",
+          "serial": "EXAMPLE-shared-lab-a",
+          "sizeBytes": 107374182400
+        }
+      ],
+      "storageClass": "diskfleet-shared-lab-a",
+      "benchmark": {
+        "poolUID": "EXAMPLE-ONLY-UID-shared-lab-a",
+        "nodeUID": "EXAMPLE-node-uid-example-lab-node-a",
+        "vgName": "df_example_shared_a",
+        "device": {
+          "path": "/dev/disk/by-id/EXAMPLE-shared-lab-a",
+          "serial": "EXAMPLE-shared-lab-a",
+          "sizeBytes": 107374182400
+        },
+        "runID": "1e98a6a45488a85665390bc0e109a88b",
+        "profile": "temporary-lv-v1",
+        "phase": "Succeeded",
+        "startedAt": "2023-11-14T22:11:20Z",
+        "completedAt": "2023-11-14T22:13:20Z",
+        "testSizeBytes": 1073741824,
+        "workloads": [
+          {
+            "name": "seq-write",
+            "blockSizeBytes": 1048576,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          },
+          {
+            "name": "seq-read",
+            "blockSizeBytes": 1048576,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          },
+          {
+            "name": "rand-write",
+            "blockSizeBytes": 4096,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          },
+          {
+            "name": "rand-read",
+            "blockSizeBytes": 4096,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          }
+        ],
+        "cleanupVerified": true,
+        "message": "Simulated offline fixture; no device IO or fio was performed",
+        "resultDigest": "f2cdeb59cf1726ea6f7ac2a4f067cdf6237659ccf73e4799a0e6e2c4e3b8a1a1"
+      },
+      "allocationApproval": {
+        "poolUID": "EXAMPLE-ONLY-UID-shared-lab-a",
+        "runID": "1e98a6a45488a85665390bc0e109a88b",
+        "resultDigest": "f2cdeb59cf1726ea6f7ac2a4f067cdf6237659ccf73e4799a0e6e2c4e3b8a1a1",
+        "decision": "Approved",
+        "reviewedAt": "2023-11-14T22:13:20Z",
+        "note": "Simulated approval for offline fixture only"
+      },
+      "initializationApproved": true
     },
     {
       "id": "shared-lab-b",
@@ -20,7 +111,98 @@
       "topologyHostname": "example-host-b",
       "state": "Ready",
       "capacityBytes": 107374182400,
-      "availableBytes": 107369988096
+      "availableBytes": 107369988096,
+      "nodeUID": "EXAMPLE-node-uid-example-lab-node-b",
+      "devices": [
+        {
+          "path": "/dev/disk/by-id/EXAMPLE-shared-lab-b",
+          "serial": "EXAMPLE-shared-lab-b",
+          "sizeBytes": 107374182400
+        }
+      ],
+      "storageClass": "diskfleet-shared-lab-b",
+      "benchmark": {
+        "poolUID": "EXAMPLE-ONLY-UID-shared-lab-b",
+        "nodeUID": "EXAMPLE-node-uid-example-lab-node-b",
+        "vgName": "df_example_shared_b",
+        "device": {
+          "path": "/dev/disk/by-id/EXAMPLE-shared-lab-b",
+          "serial": "EXAMPLE-shared-lab-b",
+          "sizeBytes": 107374182400
+        },
+        "runID": "b1166abe99875261719d07c0f8fd03dd",
+        "profile": "temporary-lv-v1",
+        "phase": "Succeeded",
+        "startedAt": "2023-11-14T22:11:20Z",
+        "completedAt": "2023-11-14T22:13:20Z",
+        "testSizeBytes": 1073741824,
+        "workloads": [
+          {
+            "name": "seq-write",
+            "blockSizeBytes": 1048576,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          },
+          {
+            "name": "seq-read",
+            "blockSizeBytes": 1048576,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          },
+          {
+            "name": "rand-write",
+            "blockSizeBytes": 4096,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          },
+          {
+            "name": "rand-read",
+            "blockSizeBytes": 4096,
+            "queueDepth": 16,
+            "durationSeconds": 30,
+            "bytes": 1073741824,
+            "bandwidthBytesPerSecond": 33554432,
+            "iops": 1000,
+            "latencyMeanNs": 100000,
+            "latencyP95Ns": 200000,
+            "latencyP99Ns": 300000,
+            "errors": 0
+          }
+        ],
+        "cleanupVerified": true,
+        "message": "Simulated offline fixture; no device IO or fio was performed",
+        "resultDigest": "61c59be41a87a1f51385e8d124fe7f5471e0cfe4b5510a690094d5a6c0dd6bc8"
+      },
+      "allocationApproval": {
+        "poolUID": "EXAMPLE-ONLY-UID-shared-lab-b",
+        "runID": "b1166abe99875261719d07c0f8fd03dd",
+        "resultDigest": "61c59be41a87a1f51385e8d124fe7f5471e0cfe4b5510a690094d5a6c0dd6bc8",
+        "decision": "Approved",
+        "reviewedAt": "2023-11-14T22:13:20Z",
+        "note": "Simulated approval for offline fixture only"
+      },
+      "initializationApproved": true
     }
   ]
 }

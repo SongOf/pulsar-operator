@@ -23,7 +23,6 @@ flowchart TB
     User[管理员浏览器 / kubectl / GitOps]
     Gateway[统一控制台 nginx]
     PulsarUI[公用 React 控制台：Pulsar / Storage 模块入口]
-    StorageUI[主内容区内嵌存储页面 /storage/]
     GoAPI[Go 控制台 API /api/]
     StorageAPI[Go 存储 API /storage/api/]
     K8s[(Kubernetes API / etcd)]
@@ -38,16 +37,14 @@ flowchart TB
 
     User --> Gateway
     Gateway --> PulsarUI
-    Gateway --> StorageUI
-    PulsarUI -->|同源 iframe 与导航同步| StorageUI
     PulsarUI --> GoAPI
-    StorageUI --> StorageAPI
+    PulsarUI --> StorageAPI
     GoAPI --> K8s
     StorageAPI --> K8s
     StorageAPI --> PlanDB
     PulsarCtl <--> K8s
     Agent <--> K8s
-    Agent -->|仅发现和审核后的 PV/VG 创建| Host
+    Agent -->|发现、批准后的 PV/VG 创建、临时 LV 压测| Host
     Agent --> LocalState
     CSI <--> K8s
     CSI -->|LV 创建 / 扩容 / 文件系统| Host
@@ -68,12 +65,12 @@ flowchart TB
 | `internal/pulsar/resources` | StatefulSet、Deployment、Service、Job、ConfigMap 等资源构造 | 执行宿主机命令 |
 | `internal/pulsar/httpapi`、`web` | 统一 React 布局、Broker/Bookie 独立管理视图、资源关联、Pulsar API 与监控 | 改变子 BookKeeper 的控制器所有权，接管存储模块的写权限 |
 | `internal/pulsar/metrics` | 查询 Prometheus 并组织控制台指标 | 物理盘 SMART、固件、RAID 运维 |
-| `internal/agent/discovery`、`internal/agent/lvm` | 设备发现、身份核验、受控 PV/VG 初始化、崩溃恢复日志 | 格式化 LV、挂载业务卷 |
+| `internal/agent/discovery`、`internal/agent/lvm` | 设备发现、身份核验、受控 PV/VG 初始化、临时 LV 压测与清理、崩溃恢复日志 | 格式化 LV、挂载业务卷 |
 | `cmd/agent`、`internal/agent` | 每节点 CR 调谐、状态上报、单池 StorageClass | 跨节点存储数据复制 |
 | `internal/storage/cluster` | 真实集群管理 API 后端、计划执行、PVC 所有权检查 | 修改 Pulsar 的 PVC 或父 CR |
 | `internal/storage/fleet` | 审核后的多节点 StorageClass 与 Pulsar 集成清单生成 | 自动维护动态池组 CRD |
 | `internal/storage/store` | 演示模型、计划、操作历史 | 作为生产 PV/PVC 状态的事实来源 |
-| `deploy/components/console-gateway` | 两个 UI/API 的路径路由 | 自动授予权限、合并令牌、SSO |
+| `deploy/components/console-gateway` | 同一前端与两个 API 的路径路由 | 自动授予权限、合并令牌、SSO |
 | OpenEBS LVM LocalPV CSI（外部） | Kubernetes PV、LV、卷扩容、文件系统、挂载 | Pulsar ledger 复制与 bookie 下线 |
 
 ## 3. 资源模型、版本与所有权
@@ -92,11 +89,12 @@ flowchart TB
 | DiskFleet 自建 PVC | `v1`，命名空间级 | 存储 API | Kubernetes 与 CSI；存储 API 可扩容、释放 |
 | Kubernetes PV | `v1`，集群级 | CSI provisioner | CSI、PV 控制器 |
 | 宿主机 VG | LVM 元数据 | DiskFleet Agent | Agent 核验；CSI 使用其空闲空间 |
-| LV / 文件系统 / 挂载 | LVM / Linux | CSI | CSI / kubelet |
+| 业务 LV / 文件系统 / 挂载 | LVM / Linux | CSI | CSI / kubelet |
+| 压测临时 LV | LVM | Agent | Agent 按 UUID/tag 核验并清理 |
 
 两个自定义 API 均为 `v1alpha1`，尚无多版本 conversion webhook。产品重命名为 `pulsar-operator` 不改写既有 API group、CR 名称、标签或 finalizer；不能通过删 CRD 后重装来“迁移”已有数据。
 
-`PhysicalDisk.spec` 记录节点、稳定设备路径、序列号、精确字节容量、型号与介质类型。`DiskPool.spec` 指定 `nodeName`、`devices[{path,serial,sizeBytes}]`、`vgName` 和 `approved`。身份字段不可变，设备同名但序列号或容量变化不能自动继承旧池。
+`PhysicalDisk.spec` 记录节点、稳定设备路径、序列号、精确字节容量、型号与介质类型。`DiskPool.spec` 指定 `nodeName`、`devices[{path,serial,sizeBytes}]`、`vgName` 和初始化批准 `approved`；独立的 `allocationApproval` 绑定池 UID、压测运行 ID 和结果摘要。身份字段不可变，设备同名但序列号或容量变化不能自动继承旧池。`status.benchmark` 保存压测身份、固定 profile、时间、逐项指标、错误和清理结果；人工审核通过后才能发布该池的 StorageClass。
 
 节点对象名与 `kubernetes.io/hostname` 不一定相同。Agent 用 `spec.nodeName` 判断执行位置，从真实 Node 标签获取 CSI 拓扑。对象的节点筛选标签值超过 63 字符时使用稳定哈希，写操作仍重新核对完整 `spec.nodeName`。
 
@@ -127,7 +125,7 @@ Go 控制器只修改 controller ownerReference 指向当前 CR UID 的既有资
 ```text
 物理盘 / 控制器 / 驱动
   └─ Linux 块设备，优先使用 /dev/disk/by-id/... 稳定标识
-      └─ DiskFleet：只读发现 → 审核身份 → pvcreate → 单盘 vgcreate
+      └─ DiskFleet：发现 → 初始化批准 → PV/VG → 临时 LV 压测与清理 → 人工审核
           └─ OpenEBS CSI：按 PVC 创建 LV → ext4 → CSI 卷发布
               └─ kubelet：把卷挂载到 Pod 声明的 volumeMount
                   ├─ ZooKeeper：/pulsar/data/zookeeper
@@ -167,6 +165,12 @@ sequenceDiagram
         A->>K: status = WritesDisabled
     else 已批准且写入开关打开
         A->>L: 加锁、写恢复日志、创建 PV / VG
+        A->>K: status = Benchmarking，尚不发布 StorageClass
+        A->>L: 自有临时 LV 执行 fio，确认清理
+        A->>K: 保存结果摘要，status = AwaitingReview
+        Admin->>API: 查看指标，提交绑定 UID/版本/运行/摘要的审核
+        API->>K: 持久审计后更新 allocationApproval
+        A->>K: 复核审核与结果一致
         A->>K: 创建单池 StorageClass，status = Ready
     end
     Admin->>K: 应用审核后的共享 StorageClass 与 PulsarCluster
@@ -180,7 +184,13 @@ sequenceDiagram
     API->>K: 只读观察外部 PVC 与真实绑定位置
 ```
 
-Pulsar 启动依赖链为 ZooKeeper → BookKeeper 元数据初始化 → bookie → Pulsar 元数据初始化 → broker → proxy。存储池 `Ready` 只表示 VG 和存储类准备完毕；PVC `Bound` 只表示卷绑定完成；必须继续检查 Pod 挂载、权限、应用就绪与消息读写，才能认定业务可用。
+新池的状态流为 `Preparing → Benchmarking → AwaitingReview → Ready`；拒绝审核为 `Rejected`，压测或清理异常为 `BenchmarkFailed`。通过后审批记录不可改写；重试会重放同一次持久结果，不反复压测。发现扫描与池操作在独立循环中执行，约两分钟的压测不阻塞磁盘新鲜度上报。固定 1 GiB、四项各 30 秒的测试是配置明确的短时采样，不能当作整盘稳态性能或长期可靠性认证，详细参数见 [Agent 设计](../../modules/agent/docs/design.md)。
+
+Storage API 与共享类规划器均重新验证完整结果和审核证据，不把孤立的 `Ready` 或前端按钮当作授权。新 VG 初始化前及压测阶段会检查现有 OpenEBS 存储类，存在可匹配它的规则则停止。OpenEBS CSI 本身不读取 DiskPool：上述保证适用于受管存储类和分配入口，并非集群级准入 webhook。管理员必须限制 StorageClass 写权限，不能在流程中外建宽泛选择器；已有类或在途 CSI 请求需要升级前核查。
+
+旧池没有压测记录时显示 `LegacyUnreviewed`，禁止 API/fleet 新分配，不对已有业务 LV 自动补跑写压测，不删除 VG、StorageClass 或旧卷。既有 StorageClass 仍可能被直接创建的 PVC 使用，升级时应暂停这些入口的新申请并另行安排维护，不能把旧池视为自动通过审核。原有业务卷的观察、扩容与 Retain 保留。
+
+Pulsar 启动依赖链为 ZooKeeper → BookKeeper 元数据初始化 → bookie → Pulsar 元数据初始化 → broker → proxy。新池 `Ready` 表示压测、审核、VG 和存储类已准备完毕；PVC `Bound` 只表示卷绑定完成；必须继续检查 Pod 挂载、权限、应用就绪与消息读写，才能认定业务可用。
 
 ## 6. 多节点分配与故障域
 
@@ -280,7 +290,7 @@ Released 不是可直接分配给下一位用户的干净卷。Retain 提供人�
 
 ### 工作空间与组件管理
 
-根目录 `web/` 保持公用前端。`ConsoleShell.jsx` 提供侧栏、顶栏和模块路由，一级入口为 Pulsar、Storage，各自显示子页面导航。`PulsarWorkspace.jsx` 管理 Pulsar 总览、Broker / Bookie、凭证和 API 轮询；`StorageWorkspace.jsx` 管理存储嵌入页面。切换到 Storage 后卸载 Pulsar 工作区，停止其轮询并丢弃过期响应；直接进入 Storage 不请求 Pulsar API。前端 hash 路由用于刷新和双向跳转，不新增 Kubernetes 资源种类。
+根目录 `web/` 保持公用前端。`ConsoleShell.jsx` 提供侧栏、顶栏和模块路由，一级入口为 Pulsar、Storage，各自显示子页面导航。`PulsarWorkspace.jsx` 管理 Pulsar 总览、Broker / Bookie、凭证和 API 轮询；`StorageWorkspace.jsx` 直接渲染存储 React 页面、节点详情和磁盘接管流程。切换到 Storage 后卸载 Pulsar 工作区，停止其轮询并丢弃过期响应；直接进入 Storage 不请求 Pulsar API。前端 hash 路由用于刷新和双向跳转，不新增 Kubernetes 资源种类。
 
 | 入口 / 路由 | 展示与操作范围 | 资源写入目标 |
 | --- | --- | --- |
@@ -297,23 +307,21 @@ Broker 和 Bookie 在列表、详情页及指标展示上独立管理。受管 B
 
 这是现有资源模型上的视图拆分：没有新增 `BrokerCluster` CRD，没有给 `PulsarCluster` 增加外部 BookKeeper 引用，也没有实现多个 PulsarCluster 共用一个独立 BKC。独立 BookKeeper 可以连接既有 ZooKeeper，但控制台不能仅靠连接地址推断其外部客户端。
 
-### 存储嵌入与路由
+### 共享前端与路由
 
-物理存储完整嵌入 React 主内容区，使用 `/storage/?embedded=1#overview` 等同源 iframe。嵌入模式隐藏存储页重复的侧栏和返回导航，保留 Token 输入、筛选、计划确认及操作结果；独立访问 `/storage/` 时仍可使用原存储页面。主侧栏提供七个子入口，父 hash 与子页面 hash 同步，存储页内部跳转也会更新主侧栏。
+Pulsar 和 Storage 页面位于同一 `web/src`，使用相同导航与组件，构建为 `web/dist`。Storage 工作区直接请求其 API；没有第二套静态页面、iframe 或跨窗口导航协议。节点详情可查看所有已加入 Kubernetes 的 Node，启用节点 Agent，并按节点健康、Agent 就绪和磁盘扫描有效期生成接管计划。
 
-`StorageWorkspace.jsx` 先请求 `/storage/api/config`，校验响应为 JSON 且具有有效模式/鉴权配置，再加载页面并等待握手；服务缺失、错误 HTML 路由、超时或握手失败会显示可重试错误，不以 iframe `load` 事件当作管理服务可用的证明。配置检查成功也不代表用户令牌已通过鉴权、真实 PVC 已绑定或 CSI 链路可用。
+`StorageWorkspace.jsx` 校验配置 API 的 JSON 模式与鉴权要求，并分别处理配置错误、凭证错误和业务请求失败。模块切换时取消过期请求；配置接口可访问不代表用户已获授权、磁盘可用或 CSI 链路健康。
 
-父子窗口通过 `pulsar.storage` 通道交换 `request-state`、`ready`、`route`；消息仅含页面白名单、就绪标记等导航信息。两端同时校验 `event.origin` 与 `event.source`，发送时指定当前 origin，协议不传输 Token。存储服务使用 CSP `frame-ancestors 'self'` 与 `X-Frame-Options: SAMEORIGIN`，允许当前入口同源嵌入，不开放任意第三方站点嵌入。
-
-nginx 继续按路径代理两套服务。路径匹配优先处理 `/storage/`，防止存储 API 或静态文件被 React 前端回退为 HTML。
+两个 API 镜像交付同一 React 构建产物。直接访问 Storage 服务时，HTML 注入无秘密的 `console-service=storage` 和相对 API 地址，页面只启用 Storage 功能，支持根路径以及反向代理的 `/storage/`。统一 Gateway 的两个 UI 入口均由 Pulsar 服务提供相同构建，因此两个模块都可访问；API 凭证仍分别管理。
 
 | 浏览器路径 | 上游 | 行为 |
 | --- | --- | --- |
-| `/` 及 Pulsar 页面资源 | Pulsar console Service:8080 | Go 服务提供构建后的统一 React 工作空间；hash 不发送给服务端 |
+| `/` 及 `/assets/...` | Pulsar console Service:8080 | 共享 React 页面与静态资源 |
 | `/api/...` | Pulsar console Service:8080 | Pulsar 管理 API，保留路径 |
-| `/storage/` | DiskFleet API Service:8080 的 `/` | 存储管理 HTML；`embedded=1` 切换嵌入布局 |
-| `/storage/static/...` | DiskFleet `/static/...` | 去除 `/storage` 前缀 |
-| `/storage/api/...` | DiskFleet `/api/...` | 去除 `/storage` 前缀，仅转发该请求自己的凭证 |
+| `/storage/` 及 `/storage/assets/...` | Pulsar console Service:8080 | 同一 React 构建，去除 `/storage` 前缀；默认进入 Storage |
+| `/storage/api/...` | DiskFleet `/api/...` | 仅路由 Storage API，转发请求自身的凭证 |
+| `/storage/healthz` | DiskFleet `/healthz` | Storage 进程健康 |
 
 ### API 兼容与查询范围
 
@@ -327,17 +335,19 @@ Pulsar API 包含集群列表、创建、PATCH、删除、重启、Pod/事件/�
 | --- | --- | --- |
 | `GET /api/config`、`GET /healthz` | 模式、令牌要求、进程健康 | 不表示存储链路已经可用 |
 | `GET /api/{overview,nodes,disks,pools,volumes,events}` | 汇总与分页查询 | 列表 `limit=1..500`、`offset`，支持 node/state/q |
-| `POST /api/pools/plan` | 生成初始化计划 | 返回待确认设备身份，计划约 10 分钟有效 |
-| `POST /api/pools` | 提交计划 | 实时复核身份、确认值、幂等资源名 |
+| `GET /api/nodes/{name}` | 节点详情与磁盘分页 | 包含 Agent 部署状态、扫描时间及操作阻止原因 |
+| `POST /api/nodes/{name}/agent` | 启用节点 Agent | Node UID/resourceVersion 前置条件；要求已安装 DaemonSet，不开启写盘 |
+| `POST /api/pools/plan` | 生成初始化计划 | 节点与 Agent 健康、磁盘 Available 且扫描未过期；计划约 10 分钟有效 |
+| `POST /api/pools` | 提交计划 | 实时复核节点、Agent、磁盘身份与扫描有效期、确认值、幂等资源名 |
 | `POST /api/volumes` | 创建独立 PVC | 只使用经过核验的池与 StorageClass |
 | `POST /api/volumes/{id}/expand` | 扩容自建 PVC | 校验所有权，不允许缩小 |
 | `DELETE /api/volumes/{id}?uid={pvcUid}` | 释放自建 PVC | 固定确认时 UID，校验真实 PV Retain、PVC UID/resourceVersion；旧 UID 重试仅恢复旧记录 |
 
-存储界面包括概览、节点、物理盘、池、卷、审计、指南。cluster 模式从 Kubernetes 读取真实状态，使用约 30 秒快照缓存；页面状态可能滞后于一次命令，不能仅凭缓存批准设备写入。执行关键写操作时会再次读取实际对象。共享类尚未选定节点的 Pending PVC 不会被猜测归到某个池。
+存储界面包括概览、节点、物理盘、池、卷、审计、指南。cluster 模式从 Kubernetes 读取真实状态，池与卷使用约 30 秒快照缓存，物理节点和磁盘准入查询重新读取库存并按当前时间计算有效性；页面状态可能滞后于一次命令，不能仅凭缓存批准设备写入。执行关键写操作时会再次读取实际对象。共享类尚未选定节点的 Pending PVC 不会被猜测归到某个池。
 
-统一布局内仍分别使用 Pulsar 与存储 bearer token，保存在各自命名的 sessionStorage 项中；网关不把某个服务的静态密钥注入另一个服务，也不合并用户权限。**同源 iframe 与路径划分不是浏览器安全隔离**，脚本注入可能影响同源存储；如需独立安全域，应采用不同域名并重新设计嵌入与认证策略。当前统一入口不是 SSO 或多租户授权系统。
+统一布局内仍分别使用 Pulsar 与存储 bearer token，保存在各自命名的 sessionStorage 项中；网关不把某个服务的静态密钥注入另一个服务，也不合并用户权限。同源页面与路径划分不构成浏览器安全隔离，脚本注入可能影响同源凭证；如需独立安全域，应采用不同域名并重新设计认证策略。当前统一入口不是 SSO 或多租户授权系统。
 
-上述布局、关系模型和嵌入协议已完成 Go/envtest、Node 测试、Vite 构建和存储页面脚本检查，管理镜像已部署；统一入口与 API 已通过实际 HTTP 核验。真实浏览器 DOM、响应式布局、焦点与交互验收仍未完成，HTTP 成功不替代浏览器验收。具体证据见[验证记录](../history/validation.md)。
+验证分为 Go/envtest 资源契约、前端模型与构建、网关路径检查，以及真实集群和浏览器验收；HTTP 成功不替代浏览器交互或真实部署验收。过去版本的部署与测试证据见[历史验证记录](../history/validation.md)，不能作为当前变更已部署的证明。
 
 ## 10. 安全与执行边界
 

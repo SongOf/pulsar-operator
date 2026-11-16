@@ -30,7 +30,7 @@ Pulsar 源码实际使用 `size` 和 `storageClassName` 字段，BookKeeper 每�
 
 也可给 ZooKeeper 独立的第三块盘。容量检查会累计同池的多个角色。默认创建 3 ZooKeeper、3 Bookie、2 Broker、1 Proxy；每个 Bookie/Broker 的 memory request 为 3 GiB，应先核对集群可调度资源。监控在这个存储验收 profile 中关闭。
 
-`pools.example.json` 与 `manifest.example.json` 是**虚构池 UID 的离线示例**，用于审查和回归测试，不能直接应用到真实集群。真实清单必须由当前 Ready DiskPool 信息生成。
+`pools.example.json` 与 `manifest.example.json` 是**虚构池 UID 和模拟压测/审核的离线示例**，用于审查和回归测试，不能直接应用到真实集群。真实清单必须由已完成单盘压测、人工审核和 StorageClass 发布的当前 Ready DiskPool 信息生成。
 
 ## 1. 构建并部署当前整合版
 

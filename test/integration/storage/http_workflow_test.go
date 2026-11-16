@@ -12,7 +12,6 @@ import (
 	"github.com/SongOf/pulsar-operator/internal/storage/httpapi"
 	"github.com/SongOf/pulsar-operator/internal/storage/model"
 	"github.com/SongOf/pulsar-operator/internal/storage/store"
-	storageweb "github.com/SongOf/pulsar-operator/web/storage"
 )
 
 // Exercise the public HTTP decoder, actual SQLite transactions and restart as
@@ -31,7 +30,7 @@ func TestDemoHTTPWorkflowPreservesReleasedDataAcrossRestart(t *testing.T) {
 	const token = "integration-test-token-24-characters"
 	var handler http.Handler
 	resetHandler := func() {
-		handler = (&httpapi.Server{Mode: "demo", Token: token, Backend: state, Static: storageweb.FS}).Handler()
+		handler = (&httpapi.Server{Mode: "demo", Token: token, Backend: state}).Handler()
 	}
 	resetHandler()
 	call := func(method, path string, body model.Object) model.Object {
@@ -64,6 +63,8 @@ func TestDemoHTTPWorkflowPreservesReleasedDataAcrossRestart(t *testing.T) {
 	}
 	plan := call("POST", "/api/pools/plan", model.Object{"name": "workflow-pool", "node": "baremetal-007", "diskIds": []string{"disk-007-1"}})
 	pool := call("POST", "/api/pools", model.Object{"planId": plan["planId"], "confirmation": plan["confirmation"]})
+	b := pool["benchmark"].(map[string]any)
+	pool = call("POST", "/api/pools/"+model.String(pool["id"])+"/review", model.Object{"uid": pool["uid"], "resourceVersion": pool["resourceVersion"], "runID": b["runID"], "resultDigest": b["resultDigest"], "decision": "Approved"})
 	volume := call("POST", "/api/volumes", model.Object{"name": "workflow-data", "namespace": "default", "poolId": pool["id"], "sizeGiB": 4})
 	path := "/api/volumes/" + model.String(volume["id"])
 	expanded := call("POST", path+"/expand", model.Object{"sizeGiB": 6})

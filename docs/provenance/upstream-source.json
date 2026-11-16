@@ -577,8 +577,8 @@
     },
     {
       "path": "web/vite.config.js",
-      "reason": "Local storage service proxy for embedded console",
-      "currentSha256": "a88ef9c61ee9437184ee2126338c1c0aa125d4bf073d956080e5c56c2ddd3d18"
+      "reason": "Serve a single React console for Pulsar and Storage, including physical-node enrollment, with separate API proxies and relative static assets.",
+      "currentSha256": "004fcfa0ee6a39757650909ea25fbe9345f34f704dae973bb618087cf0b5f035"
     },
     {
       "path": "go.mod",

@@ -11,8 +11,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	storagev1 "github.com/SongOf/pulsar-operator/api/storage/v1alpha1"
 	"github.com/SongOf/pulsar-operator/internal/agent/model"
+	"github.com/SongOf/pulsar-operator/internal/storage/poolstate"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,9 +34,13 @@ type backendCall struct {
 	approved, legacy bool
 }
 type fakeBackend struct {
-	calls []backendCall
-	err   error
-	after func()
+	calls           []backendCall
+	err             error
+	after           func()
+	benchmarkCalls  []model.BenchmarkRequest
+	benchmarkResult func(model.BenchmarkRequest) (storagev1.DiskPoolBenchmark, error)
+	duringBenchmark func(context.Context)
+	guardError      error
 }
 
 func (b *fakeBackend) EnsurePool(_ context.Context, vg string, devices []model.Device, approved bool, uid string, legacy bool) (model.PoolResult, error) {
@@ -41,6 +49,103 @@ func (b *fakeBackend) EnsurePool(_ context.Context, vg string, devices []model.D
 		b.after()
 	}
 	return model.PoolResult{VGName: vg, CapacityBytes: 90 << 30, AvailableBytes: 80 << 30}, b.err
+}
+
+func (b *fakeBackend) EnsureBenchmark(ctx context.Context, req model.BenchmarkRequest, guard func(context.Context) error) (storagev1.DiskPoolBenchmark, error) {
+	b.benchmarkCalls = append(b.benchmarkCalls, req)
+	if err := guard(ctx); err != nil {
+		b.guardError = err
+		return storagev1.DiskPoolBenchmark{}, err
+	}
+	if b.duringBenchmark != nil {
+		b.duringBenchmark(ctx)
+	}
+	if err := guard(ctx); err != nil {
+		b.guardError = err
+		return storagev1.DiskPoolBenchmark{}, err
+	}
+	if b.benchmarkResult != nil {
+		return b.benchmarkResult(req)
+	}
+	return successfulBenchmark(req), nil
+}
+
+func successfulBenchmark(req model.BenchmarkRequest) storagev1.DiskPoolBenchmark {
+	start := metav1.NewTime(time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC))
+	end := metav1.NewTime(start.Add(2 * time.Minute))
+	result := storagev1.DiskPoolBenchmark{
+		PoolUID: req.PoolUID, NodeUID: req.NodeUID, VGName: req.VGName, Device: req.Device,
+		RunID: req.RunID, Profile: poolstate.Profile, Phase: "Succeeded", StartedAt: &start,
+		CompletedAt: &end, TestSizeBytes: poolstate.TestSizeBytes, CleanupVerified: true,
+	}
+	for _, item := range []struct {
+		name  string
+		block int64
+	}{
+		{"seq-write", 1 << 20}, {"seq-read", 1 << 20}, {"rand-write", 4096}, {"rand-read", 4096},
+	} {
+		result.Workloads = append(result.Workloads, storagev1.DiskBenchmarkWorkload{
+			Name: item.name, BlockSizeBytes: item.block, QueueDepth: poolstate.QueueDepth,
+			DurationSeconds: poolstate.DurationSeconds, Bytes: 1 << 30, BandwidthBytesPerSecond: 35 << 20,
+			IOPS: 1000, LatencyMeanNS: 100000, LatencyP95NS: 200000, LatencyP99NS: 300000,
+		})
+	}
+	result.ResultDigest = poolstate.Digest(result)
+	return result
+}
+
+// These helpers model separate persisted observations and explicit human writes.
+// Reconcile and the fake backend never approve their own benchmark result.
+func recordSuccessfulBenchmark(t *testing.T, obj *unstructured.Unstructured, nodeUID string) {
+	t.Helper()
+	p, err := decodePool(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := successfulBenchmark(model.BenchmarkRequest{PoolUID: string(obj.GetUID()), NodeUID: nodeUID,
+		VGName: p.Spec.VGName, Device: p.Spec.Devices[0], RunID: poolstate.RunID(string(obj.GetUID()))})
+	status := map[string]interface{}{"phase": "AwaitingReview"}
+	if err := setBenchmark(status, &b); err != nil {
+		t.Fatal(err)
+	}
+	obj.Object["status"] = status
+}
+
+func setHumanReview(t *testing.T, obj *unstructured.Unstructured, decision, note string) {
+	t.Helper()
+	p, err := decodePool(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := p.Status.Benchmark
+	if b == nil || b.CompletedAt == nil {
+		t.Fatal("human review requires a completed report")
+	}
+	approval := &storagev1.DiskPoolAllocationApproval{PoolUID: string(obj.GetUID()), RunID: b.RunID,
+		ResultDigest: b.ResultDigest, Decision: decision, ReviewedAt: metav1.NewTime(b.CompletedAt.Add(time.Second)), Note: note}
+	value, err := runtime.DefaultUnstructuredConverter.ToUnstructured(approval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := unstructured.SetNestedMap(obj.Object, value, "spec", "allocationApproval"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func reviewPool(t *testing.T, client dynamic.Interface, name, decision, note string) {
+	t.Helper()
+	obj := get(t, client, Pools, name)
+	setHumanReview(t, obj, decision, note)
+	if _, err := client.Resource(Pools).Update(context.Background(), obj, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertNoClass(t *testing.T, client dynamic.Interface, name string) {
+	t.Helper()
+	if _, err := client.Resource(Classes).Get(context.Background(), StorageClassName(name), metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("unreviewed pool published a StorageClass: %v", err)
+	}
 }
 
 func makePool() *unstructured.Unstructured {
@@ -56,7 +161,7 @@ func makePool() *unstructured.Unstructured {
 func fixture(t *testing.T, objects ...runtime.Object) (*Reconciler, *fake.FakeDynamicClient, *fakeBackend) {
 	t.Helper()
 	node := &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Node", "metadata": map[string]interface{}{
-		"name": "worker-01", "labels": map[string]interface{}{"kubernetes.io/hostname": "actual-host"},
+		"name": "worker-01", "uid": "uid-node", "labels": map[string]interface{}{"kubernetes.io/hostname": "actual-host"},
 	}}}
 	objects = append(objects, node)
 	client := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
@@ -72,6 +177,7 @@ func fixture(t *testing.T, objects ...runtime.Object) (*Reconciler, *fake.FakeDy
 	r := &Reconciler{Client: client, Backend: backend, NodeName: "worker-01", WritesEnabled: true,
 		Discover: func(context.Context) ([]model.Disk, error) { return nil, nil },
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now:      func() time.Time { return time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC) },
 	}
 	return r, client, backend
 }
@@ -108,8 +214,24 @@ func TestPoolLifecycleAndStableStatus(t *testing.T) {
 		t.Fatalf("calls: %+v", backend.calls)
 	}
 	obj := get(t, client, Pools, "ssd-01")
-	if phase(t, client, Pools, "ssd-01") != "Ready" || !reflect.DeepEqual(obj.GetFinalizers(), []string{Finalizer}) {
+	if phase(t, client, Pools, "ssd-01") != "AwaitingReview" || !reflect.DeepEqual(obj.GetFinalizers(), []string{Finalizer}) {
 		t.Fatal(obj)
+	}
+	assertNoClass(t, client, "ssd-01")
+	if len(backend.benchmarkCalls) != 1 {
+		t.Fatalf("benchmark calls: %+v", backend.benchmarkCalls)
+	}
+	// A second cycle cannot approve the result or repeat the benchmark.
+	reconcile(t, r)
+	assertNoClass(t, client, "ssd-01")
+	if len(backend.calls) != 1 || len(backend.benchmarkCalls) != 1 {
+		t.Fatal("unreviewed report reran device operations")
+	}
+	reviewPool(t, client, "ssd-01", "Approved", "results reviewed")
+	reconcile(t, r)
+	obj = get(t, client, Pools, "ssd-01")
+	if phase(t, client, Pools, "ssd-01") != "Ready" || len(backend.calls) != 2 {
+		t.Fatal("approved pool was not published")
 	}
 	sc := get(t, client, Classes, "diskfleet-ssd-01")
 	if sc.Object["reclaimPolicy"] != "Retain" || sc.Object["volumeBindingMode"] != "WaitForFirstConsumer" || sc.GetAnnotations()[Group+"/pool-uid"] != "uid-pool" {
@@ -203,11 +325,14 @@ func TestForeignNodeIgnoredDespiteLabel(t *testing.T) {
 	}
 }
 
-func TestExistingClassAndLegacyOwnership(t *testing.T) {
+func TestApprovedExistingClassAndLegacyOwnership(t *testing.T) {
 	for _, scenario := range []string{"owned-ready", "owner-mismatch", "drift", "no-status-proof"} {
 		t.Run(scenario, func(t *testing.T) {
 			obj := makePool()
-			obj.Object["status"] = map[string]interface{}{"phase": "Ready", "storageClass": "diskfleet-ssd-01", "topologyHostname": "actual-host"}
+			recordSuccessfulBenchmark(t, obj, "uid-node")
+			setHumanReview(t, obj, "Approved", "")
+			status := obj.Object["status"].(map[string]interface{})
+			status["phase"], status["storageClass"], status["topologyHostname"] = "Ready", "diskfleet-ssd-01", "actual-host"
 			var spec poolSpec
 			_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object["spec"].(map[string]interface{}), &spec)
 			sc := storageClass(pool{obj, spec}, "actual-host")
@@ -217,7 +342,8 @@ func TestExistingClassAndLegacyOwnership(t *testing.T) {
 			case "drift":
 				sc.Object["reclaimPolicy"] = "Delete"
 			case "no-status-proof":
-				delete(obj.Object, "status")
+				delete(status, "storageClass")
+				delete(status, "topologyHostname")
 			}
 			r, client, backend := fixture(t, obj, sc)
 			reconcile(t, r)
@@ -255,6 +381,8 @@ func TestClassRevalidatedAfterDiskOperations(t *testing.T) {
 	for _, replacement := range []string{"deleted", "foreign"} {
 		t.Run(replacement, func(t *testing.T) {
 			obj := makePool()
+			recordSuccessfulBenchmark(t, obj, "uid-node")
+			setHumanReview(t, obj, "Approved", "")
 			var spec poolSpec
 			_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object["spec"].(map[string]interface{}), &spec)
 			sc := storageClass(pool{obj, spec}, "actual-host")
@@ -282,6 +410,50 @@ func TestClassRevalidatedAfterDiskOperations(t *testing.T) {
 				t.Fatal("missing replacement class")
 			}
 		})
+	}
+}
+
+func TestHostnameChangedDuringDiskOperationsBlocksClassUntilRestored(t *testing.T) {
+	obj := makePool()
+	recordSuccessfulBenchmark(t, obj, "uid-node")
+	setHumanReview(t, obj, "Approved", "")
+	r, client, backend := fixture(t, obj)
+	backend.after = func() {
+		node := get(t, client, Nodes, r.NodeName)
+		node.SetLabels(map[string]string{"kubernetes.io/hostname": "changed-host"})
+		if _, err := client.Resource(Nodes).Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reconcile(t, r)
+	assertNoClass(t, client, obj.GetName())
+	if phase(t, client, Pools, obj.GetName()) != "Error" || len(backend.calls) != 1 {
+		t.Fatal("changed topology was not rejected after device verification")
+	}
+	node := get(t, client, Nodes, r.NodeName)
+	if node.GetUID() != "uid-node" {
+		t.Fatal("test must change hostname without recreating the Node")
+	}
+	backend.after = nil
+	node.SetLabels(map[string]string{"kubernetes.io/hostname": "actual-host"})
+	if _, err := client.Resource(Nodes).Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	reconcile(t, r)
+	if phase(t, client, Pools, obj.GetName()) != "Ready" || len(backend.calls) != 2 || len(backend.benchmarkCalls) != 0 {
+		t.Fatal("restored topology did not publish the previously reviewed result")
+	}
+	current := get(t, client, Pools, obj.GetName())
+	p, err := decodePool(current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status.TopologyHostname != "actual-host" {
+		t.Fatal("restored hostname was not recorded")
+	}
+	class := get(t, client, Classes, StorageClassName(obj.GetName()))
+	if err := validateClass(class, storageClass(pool{current, p.Spec}, "actual-host")); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -362,6 +534,8 @@ func TestPaginationAndResourceVersionOverHTTP(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(list)
 		case req.Method == "GET" && strings.HasSuffix(req.URL.Path, "/physicaldisks"):
 			_, _ = io.WriteString(w, `{"apiVersion":"storage.diskfleet.io/v1alpha1","kind":"PhysicalDiskList","items":[]}`)
+		case req.Method == "GET" && strings.HasSuffix(req.URL.Path, "/nodes/worker-01"):
+			_, _ = io.WriteString(w, `{"apiVersion":"v1","kind":"Node","metadata":{"name":"worker-01","uid":"uid-node"}}`)
 		case req.Method == "PATCH":
 			patches++
 			var body struct {

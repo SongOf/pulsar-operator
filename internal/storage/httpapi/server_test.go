@@ -16,7 +16,6 @@ import (
 	"testing/fstest"
 
 	"github.com/SongOf/pulsar-operator/internal/storage/model"
-	storageweb "github.com/SongOf/pulsar-operator/web/storage"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -67,7 +66,12 @@ func (b *fixtureBackend) Release(_ context.Context, id, uid string) (model.Objec
 
 func fixture() (*Server, *fixtureBackend) {
 	b := &fixtureBackend{}
-	return &Server{Mode: "demo", Token: testToken, Backend: b, Static: storageweb.FS, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}, b
+	assets := fstest.MapFS{
+		"index.html":     {Data: []byte(`<html lang="zh-CN"><head><script type="module" src="./assets/app.js"></script><link rel="stylesheet" href="./assets/app.css"></head><body><div id="root"></div></body></html>`)},
+		"assets/app.js":  {Data: []byte(`export const app = "shared-console";`)},
+		"assets/app.css": {Data: []byte(`body { margin: 0; }`)},
+	}
+	return &Server{Mode: "demo", Token: testToken, Backend: b, Static: assets, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}, b
 }
 func request(server *Server, method, target, body string, auth bool) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, target, strings.NewReader(body))
@@ -97,7 +101,7 @@ func expectStatus(t *testing.T, response *httptest.ResponseRecorder, want int) {
 
 func TestPublicConfigurationAndBearerAuthentication(t *testing.T) {
 	s, b := fixture()
-	for _, route := range []string{"/api/config", "/healthz", "/", "/?embedded=1", "/static/app.js", "/static/styles.css"} {
+	for _, route := range []string{"/api/config", "/healthz", "/", "/assets/app.js", "/assets/app.css"} {
 		expectStatus(t, request(s, "GET", route, "", false), 200)
 	}
 	if len(b.calls) != 0 {
@@ -260,27 +264,27 @@ func TestErrorStatusAndSensitiveDetails(t *testing.T) {
 	}
 }
 
-func TestEmbeddedConsoleAssetsAndTraversal(t *testing.T) {
+func TestSharedConsoleAssetsDeploymentAndTraversal(t *testing.T) {
 	s, _ := fixture()
-	index := request(s, "GET", "/?embedded=1", "", false)
+	index := request(s, "GET", "/", "", false)
 	expectStatus(t, index, 200)
-	for _, marker := range []string{`lang="zh-CN"`, `id="main"`, `id="dialog"`, `id="token-button"`, `id="mode"`, `id="refresh-button"`, `./static/app.js`, `./static/styles.css`} {
+	for _, marker := range []string{`id="root"`, `./assets/app.js`, `./assets/app.css`, `<meta name="console-service" content="storage">`, `<meta name="storage-api-base" content="api">`} {
 		if !strings.Contains(index.Body.String(), marker) {
 			t.Fatalf("missing %s", marker)
 		}
 	}
-	for _, target := range []string{"/", "/static/app.js", "/static/styles.css"} {
+	for _, target := range []string{"/", "/assets/app.js", "/assets/app.css"} {
 		w := request(s, "GET", target, "", false)
 		expectStatus(t, w, 200)
-		if len(w.Body.Bytes()) < 100 || w.Header().Get("Content-Length") != strconv.Itoa(w.Body.Len()) {
+		if w.Body.Len() == 0 || w.Header().Get("Content-Length") != strconv.Itoa(w.Body.Len()) {
 			t.Fatal("missing asset")
 		}
 		if w.Header().Get("X-Content-Type-Options") != "nosniff" || w.Header().Get("Cache-Control") != "no-store" || w.Header().Get("X-Frame-Options") != "SAMEORIGIN" || !strings.Contains(w.Header().Get("Content-Security-Policy"), "frame-ancestors 'self'") {
 			t.Fatal(w.Header())
 		}
 	}
-	s.Static = fstest.MapFS{"static/index.html": {Data: []byte("index")}, "secret.txt": {Data: []byte(testToken)}}
-	for _, target := range []string{"/static/../secret.txt", "/static/%2e%2e/secret.txt", "/static/../../secret.txt", "/static/nonexistent.js", "/static/..%5csecret.txt"} {
+	s.Static = fstest.MapFS{"index.html": {Data: []byte("<head></head>")}, "secret.txt": {Data: []byte(testToken)}}
+	for _, target := range []string{"/assets/../secret.txt", "/assets/%2e%2e/secret.txt", "/assets/../../secret.txt", "/assets/nonexistent.js", "/assets/..%5csecret.txt"} {
 		w := request(s, "GET", target, "", false)
 		expectStatus(t, w, 404)
 		if strings.Contains(w.Body.String(), testToken) {

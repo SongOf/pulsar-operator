@@ -50,3 +50,6 @@ spec:
                   maxItems: 32
                   items: {type: string, maxLength: 2048}
                 poolName: {type: string, maxLength: 253}
+                lastObservedTime: {type: string, format: date-time}
+                validUntil: {type: string, format: date-time}
+                nodeUID: {type: string, minLength: 1, maxLength: 128}

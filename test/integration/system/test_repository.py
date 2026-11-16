@@ -157,7 +157,15 @@ class RepositoryTests(unittest.TestCase):
         agent_role = (ROOT / "config/agent/rbac/rbac.yaml").read_text()
         api_role = (ROOT / "config/storage/rbac/rbac.yaml").read_text()
         self.assertNotIn("diskfleet-api", agent_role)
-        self.assertNotIn("diskfleet-agent", api_role)
+        for binding in documents(api_role):
+            if top_value(binding, "kind") in {"RoleBinding", "ClusterRoleBinding"}:
+                subjects = binding.split("subjects:", 1)[1]
+                self.assertIn("name: diskfleet-api", subjects)
+                self.assertNotIn("name: diskfleet-agent", subjects)
+        observer = next(doc for doc in documents(api_role) if top_value(doc, "kind") == "Role")
+        self.assertIn("namespace: diskfleet-system", observer)
+        self.assertRegex(observer, r"resources: \[daemonsets\]\s+resourceNames: \[diskfleet-agent\]\s+verbs: \[get\]")
+        self.assertNotRegex(observer, r"\b(?:create|patch|update|delete|exec)\b")
         self.assertIn("physicaldisks/status", agent_role)
         self.assertNotIn("persistentvolumeclaims", agent_role)
         self.assertIn("persistentvolumeclaims", api_role)
@@ -206,7 +214,9 @@ class RepositoryTests(unittest.TestCase):
             self.assertRegex(service, r"\bport:\s*8080\b")
             self.assertIn(f"http://{name}.{namespace}.svc:8080", config)
         storage = re.search(r"location \^~ /storage/\s*\{([^}]+)\}", config).group(1)
-        self.assertIn("proxy_pass http://diskfleet-api.diskfleet-system.svc:8080/;", storage)
+        self.assertIn("proxy_pass http://pulsar-operator-console.pulsar-operator-system.svc:8080/;", storage)
+        storage_api = re.search(r"location \^~ /storage/api/\s*\{([^}]+)\}", config).group(1)
+        self.assertIn("proxy_pass http://diskfleet-api.diskfleet-system.svc:8080/api/;", storage_api)
         self.assertRegex(config, r"location = /storage\s*\{\s*return 308 /storage/")
         for path in ("/api/", "/"):
             location = re.search(r"location " + re.escape(path) + r"\s*\{([^}]+)\}", config).group(1)

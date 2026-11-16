@@ -35,7 +35,7 @@ docker push YOUR_REGISTRY/pulsar-operator-storage:integration-v1
 docker push YOUR_REGISTRY/pulsar-operator-agent:integration-v1
 ```
 
-把 `YOUR_REGISTRY` 替换为可用的私有镜像仓库。Pulsar 镜像包含 Go Operator 与构建后的 React 页面；storage 镜像包含 Go API 和嵌入的存储页面；agent 镜像运行 Go 节点 Agent 及 Linux LVM 工具。三个 Dockerfile 均位于 `modules/<模块>/Dockerfile`，从仓库根 context 构建；可用 `make image-pulsar`、`make image-storage`、`make image-agent` 分别构建，原 `make image` 仍构建 Pulsar。三个后端运行镜像不需要 Python。网关使用 nginx 镜像。离线节点应预先同步所有镜像，包括 Pulsar、监控和 E2E 的 busybox；正式发布固定镜像 digest。
+把 `YOUR_REGISTRY` 替换为可用的私有镜像仓库。Pulsar 镜像包含 Go Operator 与构建后的 React 页面；storage 镜像包含 Go API 和同一套 React 构建产物；agent 镜像运行 Go 节点 Agent 及 Linux LVM 工具。三个 Dockerfile 均位于 `modules/<模块>/Dockerfile`，从仓库根 context 构建；可用 `make image-pulsar`、`make image-storage`、`make image-agent` 分别构建，原 `make image` 仍构建 Pulsar。三个后端运行镜像不需要 Python。网关使用 nginx 镜像。离线节点应预先同步所有镜像，包括 Pulsar、监控和 E2E 的 busybox；正式发布固定镜像 digest。
 
 默认整体部署使用本地开发镜像 `pulsar-operator:dev`、`pulsar-operator-storage:dev` 与 `pulsar-operator-agent:dev`。部署自有镜像时修改 `deploy/bundles/all/kustomization.yaml` 的 `images`，或创建引用该目录的自有 overlay；仅构建/推送镜像不会自动修改部署配置。
 
@@ -104,7 +104,7 @@ Pulsar 控制台编辑会固定打开时的资源 UID 和 resourceVersion。保�
 
 ## 5. 将物理盘接到系统并纳管
 
-硬件安装、热插拔和控制器识别详见[物理盘手册](../../modules/storage/docs/physical-disks.md)。关键顺序是：接线/插盘 → 内核与 udev 发现 → 核对资产身份 → 创建未批准 DiskPool → 审查 → 开启写入与批准 → 等待 Ready。
+硬件安装、热插拔和控制器识别详见[物理盘手册](../../modules/storage/docs/physical-disks.md)。关键顺序是：接线/插盘 → 内核与 udev 发现 → 核对资产身份 → 批准初始化 DiskPool → 临时 LV 单盘压测 → 页面查看结果并人工审核 → 等待 Ready。
 
 ```bash
 # 在目标 Linux 节点执行只读检查
@@ -134,6 +134,10 @@ kubectl get diskpool worker-01-ssd-01 -w
 
 该开关影响所有已启用节点；按节点标签分批上线，审查此前积压的 approved 池。已有文件系统、分区、挂载、swap、RAID 签名、外部 LVM 或 holders 会被拒绝，程序不自动擦盘。不要删除保护检查来接管有数据的设备。
 
+新建 VG 后，Agent 自动创建 1 GiB 临时 LV，依次执行顺序写、顺序读、随机写、随机读，各 30 秒。只有结果成功且临时 LV 清理已核验，池详情页才开放人工审核；查看吞吐、IOPS、平均/P95/P99 总延迟和错误后提交决定。审核通过并经 Agent 复核后发布 StorageClass；请求被接受不代表池已 Ready。失败、中断、清理未确认或审核拒绝均不放行新卷。
+
+升级前应核查已有 StorageClass 与 Pending PVC/CSI 请求。项目不安装全局准入 webhook：Agent 会拒绝初始化能被现有 OpenEBS 类选中的未审核 VG，但管理员外建宽泛 VG 规则仍可能绕过受管入口。旧池缺少压测记录时禁止 API/fleet 新分配，保留既有卷与类，不自动在业务盘上补跑压测；先暂停旧类的新申请，再安排维护。完整边界见[架构说明](../design/architecture.md)。
+
 **盘交给 LVM 后不直接挂到 `/mnt`，也不为原始盘写 `/etc/fstab`。** Agent 建 VG，CSI 从中分配 LV 并建立 ext4，kubelet 将 PVC 对应卷挂到 Pod 的 `volumeMounts`。`/var/lib/diskfleet` 的 UUID/所有权日志与 `/etc/lvm` 需持久保留并备份。
 
 整套部署重新 apply 会恢复默认 `ENABLE_DISK_WRITES=false`。若长期维护受控写入配置，应在自己的 overlay 明确记录；不要依赖一次 `set env` 作为不可追踪的配置。
@@ -158,7 +162,7 @@ KUBE_API_URL=http://127.0.0.1:8001 bin/storage-plan \
   --output /tmp/pulsar-storage-plan.json
 ```
 
-生成器验证池 Ready、容量、真实 hostname、池 UID、每等级每节点一池以及 journal/ledger 隔离；输出专用 namespace、三个 fleet StorageClass 和一个 `PulsarCluster`。每个 StorageClass 包含精确 VG 白名单及拓扑，避免只允许一个节点的类与三副本硬反亲和冲突。
+生成器验证池的完整压测结果、人工审核、Ready、容量、真实 hostname、池/节点 UID、每等级每节点一池以及 journal/ledger 隔离；输出专用 namespace、三个 fleet StorageClass 和一个 `PulsarCluster`。每个 StorageClass 包含精确 VG 白名单及拓扑，避免只允许一个节点的类与三副本硬反亲和冲突。
 
 审查计划后：
 

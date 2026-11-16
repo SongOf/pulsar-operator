@@ -16,6 +16,13 @@ type PhysicalDiskStatus struct {
 	Phase    string   `json:"phase,omitempty"`
 	Reasons  []string `json:"reasons,omitempty"`
 	PoolName string   `json:"poolName,omitempty"`
+	// LastObservedTime records the last successful scan that included this disk.
+	// Failed scans and absent disks must not advance this timestamp.
+	LastObservedTime *metav1.Time `json:"lastObservedTime,omitempty"`
+	// ValidUntil bounds the observation to one scan interval including jitter.
+	ValidUntil *metav1.Time `json:"validUntil,omitempty"`
+	// NodeUID ties the observation to a Node incarnation, not just its name.
+	NodeUID string `json:"nodeUID,omitempty"`
 }
 
 // PhysicalDisk records discovery; its existence does not approve device writes.

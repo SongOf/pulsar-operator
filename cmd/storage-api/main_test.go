@@ -17,7 +17,7 @@ import (
 
 func clearEnvironment(t *testing.T) {
 	t.Helper()
-	for _, name := range []string{"MODE", "API_HOST", "API_PORT", "API_TOKEN", "STATE_DIR"} {
+	for _, name := range []string{"MODE", "API_HOST", "API_PORT", "API_TOKEN", "STATE_DIR", "WEB_DIR"} {
 		t.Setenv(name, "")
 	}
 }
@@ -28,7 +28,7 @@ func TestCLIOptionsAndEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.mode != "demo" || opts.host != "127.0.0.1" || opts.port != "8080" || opts.stateDir != ".state" {
+	if opts.mode != "demo" || opts.host != "127.0.0.1" || opts.port != "8080" || opts.stateDir != ".state" || opts.uiDir != "web/dist" {
 		t.Fatalf("defaults=%+v", opts)
 	}
 	t.Setenv("API_HOST", "::1")
@@ -96,6 +96,60 @@ func TestStartupPreparesHTTPServerAndReportsSocketError(t *testing.T) {
 	})
 	if !called || !errors.Is(err, denied) {
 		t.Fatalf("socket error not propagated: %v", err)
+	}
+}
+
+func TestConsoleUsesConfiguredSharedBuildWithoutExposingAPICredentials(t *testing.T) {
+	clearEnvironment(t)
+	build := t.TempDir()
+	if err := os.WriteFile(filepath.Join(build, "index.html"), []byte(`<html><head></head><body><div id="root">shared build</div></body></html>`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("WEB_DIR", "unused-build-directory")
+	t.Setenv("API_TOKEN", "storage-console-test-token-24-characters")
+	err := run(context.Background(), []string{"--state-dir", t.TempDir(), "--ui-dir", build}, io.Discard, func(_ context.Context, server *http.Server) error {
+		w := httptest.NewRecorder()
+		server.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+		if w.Code != 200 || !strings.Contains(w.Body.String(), "shared build") || !strings.Contains(w.Body.String(), `name="console-service" content="storage"`) {
+			t.Fatalf("shared console: status=%d body=%s", w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), os.Getenv("API_TOKEN")) {
+			t.Fatal("deployment metadata exposed API credentials")
+		}
+		w = httptest.NewRecorder()
+		server.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/api/nodes", nil))
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("console asset access bypassed API authentication: %d", w.Code)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConsoleBuildCannotExposeFilesThroughSymlinks(t *testing.T) {
+	clearEnvironment(t)
+	build, outside := t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(build, "assets"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "private.txt"), []byte("private-state-must-stay-private"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(build, "assets", "external")); err != nil {
+		t.Fatal(err)
+	}
+	err := run(context.Background(), []string{"--state-dir", t.TempDir(), "--ui-dir", build}, io.Discard, func(_ context.Context, server *http.Server) error {
+		w := httptest.NewRecorder()
+		server.Handler.ServeHTTP(w, httptest.NewRequest("GET", "/assets/external/private.txt", nil))
+		if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "private-state-must-stay-private") {
+			t.Fatalf("build directory escape: status=%d body=%s", w.Code, w.Body.String())
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

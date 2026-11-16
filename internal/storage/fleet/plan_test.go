@@ -28,6 +28,9 @@ func loadFixture(t *testing.T, profile string) fixture {
 	if err := decoder.Decode(&f); err != nil {
 		t.Fatal(err)
 	}
+	for _, pool := range f.Pools {
+		approveFixture(pool)
+	}
 	return f
 }
 

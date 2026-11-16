@@ -23,7 +23,7 @@
 | `generate.sh objects` | Pulsar/Storage 的 DeepCopy；Pulsar 另支持 `manifests`，Agent 无独立类型生成 |
 | `dev.sh <命令>` | 转发原有 `init/build/run/unit/integration/test/image/render/deploy` 等命令 |
 
-公用前端 `web/scripts` 使用 `init.sh`、`build.sh`、`run.sh`、`test.sh`；`check-storage-ui.cjs` 是 Storage 页面专项检查，由 Storage 集成测试调用，不含部署逻辑。
+公用前端 `web/scripts` 使用 `init.sh`、`build.sh`、`run.sh`、`test.sh`；`check-storage-ui.cjs` 是 共享 React 存储页面专项检查，由 Storage 集成测试调用，不含部署逻辑。
 
 ```bash
 # 初始化仓库，然后分别运行测试层：

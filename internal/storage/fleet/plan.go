@@ -47,6 +47,9 @@ func set(list []string) map[string]bool {
 }
 
 func poolIdentity(p model.Object) error {
+	if err := model.RequireAllocation(p); err != nil {
+		return err
+	}
 	if text(p, "state") != "Ready" || text(p, "uid") == "" || text(p, "node") == "" {
 		return model.NewProblem(409, "共享存储类只允许引用具有 UID 的 Ready 池")
 	}

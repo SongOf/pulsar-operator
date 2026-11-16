@@ -40,6 +40,18 @@ type Backend interface {
 	Release(context.Context, string, string) (Object, error)
 }
 
+// NodeBackend exposes explicit, optimistic node enrollment independently of disk writes.
+type NodeBackend interface {
+	Node(context.Context, string, ListOptions) (Object, error)
+	EnableAgent(context.Context, string, Object) (Object, error)
+}
+
+// PoolBackend exposes immutable-result review separately from disk initialization.
+type PoolBackend interface {
+	Pool(context.Context, string) (Object, error)
+	ReviewPool(context.Context, string, Object) (Object, error)
+}
+
 type Problem struct {
 	Status int
 	Detail string

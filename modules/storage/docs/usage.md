@@ -6,6 +6,8 @@
 
 ```bash
 modules/storage/scripts/dev.sh init
+web/scripts/init.sh
+web/scripts/build.sh
 modules/storage/scripts/dev.sh run
 ```
 
@@ -17,7 +19,7 @@ modules/storage/scripts/dev.sh run
 modules/storage/scripts/dev.sh unit                          # Go HTTP、SQLite、集群与规划测试
 modules/storage/scripts/dev.sh build
 modules/agent/scripts/dev.sh build             # 构建 Go API、规划、基准及 Agent 工具
-modules/storage/scripts/dev.sh integration        # Node 页面模板与转义验收
+modules/storage/scripts/dev.sh integration        # HTTP 工作流与 React 存储契约检查
 modules/agent/scripts/dev.sh discover            # 只读发现，仅支持 Linux
 modules/storage/scripts/dev.sh benchmark --disks 10000       # 本地元数据负载测试
 scripts/dev.sh render storage > /tmp/diskfleet.yaml # API + Agent 配置，不连接集群
@@ -61,7 +63,9 @@ scripts/dev.sh render storage > /tmp/diskfleet.yaml # API + Agent 配置，不�
 
    已存在的 Secret 应复用，或走自己的凭据轮换流程。API 以非 root 运行，ClusterIP 服务不直接暴露外网。集群模式要求至少 24 字符的 Bearer Token；前端凭证只保存在 sessionStorage。生产接入组织的 TLS/身份代理，限制可管理命名空间。当前 Token 是单一管理员身份，不是多租户 RBAC 系统。
 
-4. 选择节点，只发现磁盘：
+4. 打开节点管理，部署 Agent 并发现磁盘：
+
+   已加入集群的 Node 会出现在节点列表中，不要求它已经有 Agent 或磁盘记录。打开节点详情，点击“部署 Agent”；API 检查节点健康和已安装 DaemonSet 的选择条件后，仅添加启用标签。等待 Agent 显示运行就绪，再查看上报的磁盘列表、扫描时间和有效期。也可以通过命令设置同一标签：
 
    ```bash
    kubectl label node <实际节点名> storage.diskfleet.io/enabled=true
@@ -70,7 +74,7 @@ scripts/dev.sh render storage > /tmp/diskfleet.yaml # API + Agent 配置，不�
    kubectl -n diskfleet-system port-forward svc/diskfleet-api 8080:8080
    ```
 
-   打开 http://127.0.0.1:8080 并输入 Secret 中的管理 Token。只选择核实过的空白磁盘，先生成接管计划再提交。计划有效期为 10 分钟，提交前及执行前再次核验身份。批量接管按每盘独立计划顺序执行；失败不会回滚已经建立的 VG。
+   打开 http://127.0.0.1:8080 并输入 Secret 中的管理 Token。只选择核实过的空白磁盘，先生成接管计划再提交。计划有效期为 10 分钟，但每次提交还要求最新磁盘扫描仍有效、节点与 Agent 健康；计划有效不等于旧库存可以继续批准。默认扫描有效期为 36 秒，过期时等待下一次成功扫描。提交前及执行前再次核验身份。批量接管按每盘独立计划顺序执行；失败不会回滚已经建立的 VG。
 
 5. 开启真实写入开关。**此命令会允许已提交、approved=true 的磁盘池请求开始初始化磁盘**，必须先检查所有请求：
 
@@ -82,7 +86,9 @@ scripts/dev.sh render storage > /tmp/diskfleet.yaml # API + Agent 配置，不�
 
    Agent 只接管指定的 by-id/serial/容量组合，不支持自动擦除旧盘。系统盘、挂载盘、swap、分区、RAID 签名、holders、已有外部 PV/VG、缺失身份信息均拒绝。单盘 VG 的身份与恢复日志写入宿主 `/var/lib/diskfleet`，不得删除。该目录及 `/etc/lvm` 应纳入备份。
 
-6. 在 Ready 存储池创建 PVC，然后创建引用该 PVC 的 Pod。可参考 [`config/storage/samples/workload.yaml`](../../../config/storage/samples/workload.yaml)，替换其中 StorageClass；或执行验收脚本：
+6. 等待自动单盘压测完成，再在池详情查看报告并审核。报告包含顺序/随机读写吞吐、IOPS、延迟分位数和临时 LV 清理结果。清理未确认、身份不匹配或结果不完整时不能审核；拒绝时填写原因。通过后等待 Agent 发布 StorageClass 并变为 Ready。审批通过后不能撤回或改写，提交前应确认当前设备和业务要求。
+
+   只有显示可创建卷的池才能创建 PVC，然后创建引用该 PVC 的 Pod。可参考 [`config/storage/samples/workload.yaml`](../../../config/storage/samples/workload.yaml)，替换其中 StorageClass；或执行验收脚本：
 
    ```bash
    bash test/e2e/storage/volumes.sh <实际的-diskfleet-storageclass>
@@ -99,8 +105,10 @@ scripts/dev.sh render storage > /tmp/diskfleet.yaml # API + Agent 配置，不�
 
 ## 参数与工具
 
-`init` 准备 Go 依赖并检查 Node、Python 3；`run` 支持 API 启动参数，如 `--mode demo --host 127.0.0.1 --port 8082`。环境变量 `MODE`、`API_HOST`、`API_PORT`、`API_TOKEN`、`STATE_DIR` 继续有效；cluster 模式或非回环监听要求至少 24 字符的 Token。Kubernetes 连接使用 ServiceAccount 或显式 `KUBE_API_URL` 等设置，不自动读取 kubeconfig。
+`init` 准备 Go 依赖并检查 Node、Python 3；共享页面另通过 `web/scripts/init.sh`、`web/scripts/build.sh` 准备。`run` 支持 API 启动参数，如 `--mode demo --host 127.0.0.1 --port 8082`。环境变量 `MODE`、`API_HOST`、`API_PORT`、`API_TOKEN`、`STATE_DIR` 继续有效；`WEB_DIR` / `--ui-dir` 指向共享前端构建目录，模块运行脚本默认使用仓库 `web/dist`，镜像使用 `/web`。cluster 模式或非回环监听要求至少 24 字符的 Token。Kubernetes 连接使用 ServiceAccount 或显式 `KUBE_API_URL` 等设置，不自动读取 kubeconfig。
 
-`modules/storage/scripts/dev.sh plan --help` 查看规划参数；`--pools-json` 可进行离线规划，`--output` 不覆盖已有文件，生成结果不自动 apply。输入和输出相对路径以调用者目录为准。`benchmark --disks 10000` 只运行本地元数据基准。
+`modules/storage/scripts/dev.sh plan --help` 查看规划参数；`--pools-json` 可携带完整压测/审核证据进行离线规划（不验证实际集群，不能用虚构示例给真实池补签审核），`--output` 不覆盖已有文件，生成结果不自动 apply。输入和输出相对路径以调用者目录为准。`benchmark --disks 10000` 只运行本地元数据基准。
 
 `csi-install` 是显式集群命令：安装独立 OpenEBS LVM LocalPV chart，默认版本 1.10.1，可用 `CSI_CHART_VERSION` 指定经过验证的版本；额外 Helm 参数原样传递，如 `--values deploy/addons/openebs-lvm/two-node-values.yaml`。`init` 不会执行它。镜像和 API/Agent 安装也不会自动批准磁盘。
+
+已有 Ready 池若没有压测报告，会显示 LegacyUnreviewed，禁止新分配；系统不会自动重测旧数据盘或删除已有 StorageClass。已有卷仍可按原所有权规则观察、扩容和 Retain 释放。CSI 不检查 DiskPool 审核，需限制集群中外部或宽泛 `vgpattern` StorageClass 对未审核 VG 的直接访问。模拟模式所有压测值都明确标记为模拟，不代表设备能力。

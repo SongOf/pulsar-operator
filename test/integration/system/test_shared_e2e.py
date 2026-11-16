@@ -4,6 +4,7 @@ These tests verify acceptance guards and probe manifests, not a running cluster.
 Every mutating command or container exec is rejected by the fake client.
 """
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -41,12 +42,43 @@ def pulsar_plan(pools, assignments, profile):
         return json.loads(output.read_text())
 
 
+def approve_simulated_pool(pool):
+    """Synthetic offline evidence only; never measures or approves a real disk.
+
+    Field insertion order mirrors DiskPoolBenchmark/Device/Workload Go JSON.
+    The real Go planner validates this digest when each fixture is consumed.
+    """
+    profile = 'temporary-lv-v1'
+    run_id = hashlib.sha256((profile + '\0' + pool['uid']).encode()).hexdigest()[:32]
+    device = dict(path='/dev/disk/by-id/EXAMPLE-' + pool['id'],
+                  serial='EXAMPLE-' + pool['id'], sizeBytes=pool['capacityBytes'])
+    node_uid = 'EXAMPLE-node-uid-' + pool['node']
+    result = dict(poolUID=pool['uid'], nodeUID=node_uid, vgName=pool['vgName'],
+                  device=device, runID=run_id, profile=profile, phase='Succeeded',
+                  startedAt='2023-11-14T22:11:20Z', completedAt='2023-11-14T22:13:20Z',
+                  testSizeBytes=1024**3,
+                  workloads=[dict(name=name, blockSizeBytes=block, queueDepth=16,
+                                  durationSeconds=30, bytes=1024**3, bandwidthBytesPerSecond=32*1024**2,
+                                  iops=1000, latencyMeanNs=100000, latencyP95Ns=200000,
+                                  latencyP99Ns=300000, errors=0)
+                             for name, block in [('seq-write', 1024**2), ('seq-read', 1024**2),
+                                                 ('rand-write', 4096), ('rand-read', 4096)]],
+                  cleanupVerified=True, message='Simulated offline fixture; no device IO or fio was performed')
+    result['resultDigest'] = hashlib.sha256(json.dumps(result, separators=(',', ':')).encode()).hexdigest()
+    pool.update(initializationApproved=True, nodeUID=node_uid, devices=[device], storageClass='diskfleet-' + pool['id'],
+                benchmark=result, allocationApproval=dict(poolUID=pool['uid'], runID=run_id,
+                    resultDigest=result['resultDigest'], decision='Approved', reviewedAt='2023-11-14T22:13:20Z',
+                    note='Simulated approval for offline fixture only'))
+    return pool
+
+
 def fixture(shared=True):
     count = 2 if shared else 3
     pool_data = [dict(id=f'{role}-{i}', uid=f'uid-{role}-{i}', node=f'node-{i}',
                       vgName=f'df_{role}_{i}', topologyHostname=f'host-{i}', state='Ready',
                       availableBytes=100 * 1024**3, capacityBytes=100 * 1024**3)
                  for role in (('data',) if shared else ('journal', 'ledger')) for i in range(count)]
+    pool_data = [approve_simulated_pool(pool) for pool in pool_data]
     assignments = {role: [f'{"data" if shared else "ledger" if role == "ledger" else "journal"}-{i}'
                           for i in range(count)] for role in ('zookeeper', 'journal', 'ledger')}
     plan = pulsar_plan(pool_data, assignments, profile=SHARED if shared else 'three-node-e2e')

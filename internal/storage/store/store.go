@@ -188,6 +188,13 @@ func (s *Store) List(ctx context.Context, kind string, opts model.ListOptions) (
 			return err
 		}
 		page.Items = items
+		if kind == "pools" {
+			for _, pool := range items {
+				if err := demoPool(pool); err != nil {
+					return err
+				}
+			}
+		}
 		if kind == "nodes" {
 			for _, item := range items {
 				pools, err := queryObjects(ctx, tx, "SELECT data FROM objects WHERE kind='pools' AND node=?", item["name"])
@@ -199,6 +206,16 @@ func (s *Store) List(ctx context.Context, kind string, opts model.ListOptions) (
 					allocated += model.Int64(pool["allocatedBytes"])
 				}
 				item["allocatedBytes"] = allocated
+				demoNode(item)
+			}
+		}
+		if kind == "disks" {
+			for _, item := range items {
+				node, err := s.Get(ctx, tx, "nodes", model.String(item["node"]))
+				if err != nil {
+					return err
+				}
+				demoDisk(item, node)
 			}
 		}
 		return nil

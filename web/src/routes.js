@@ -34,6 +34,7 @@ export function parseRoute(hash = '') {
   if (isPulsarPage(parts[0])) parts.unshift('pulsar')
   const [module, page = 'overview', ns, name] = parts
   if (module === 'storage') {
+    if (['nodes', 'pools'].includes(page) && parts.length === 3 && isIdentity(ns)) return { module, page, name: ns }
     return { module, page: parts.length <= 2 && isStoragePage(page) ? page : 'overview' }
   }
   if (module === 'pulsar' && isPulsarPage(page)) {
@@ -50,8 +51,8 @@ export function pulsarRoute(page = 'overview', ns, name) {
   return parts.map(encodeURIComponent).join('/')
 }
 
-export const storageRoute = (page = 'overview') => 'storage/' + (isStoragePage(page) ? page : 'overview')
-export const routePath = route => route.module === 'storage' ? storageRoute(route.page) : pulsarRoute(route.page, route.ns, route.name)
+export const storageRoute = (page = 'overview', name) => 'storage/' + (isStoragePage(page) ? page : 'overview') + (['nodes', 'pools'].includes(page) && isIdentity(name) ? '/' + encodeURIComponent(name) : '')
+export const routePath = route => route.module === 'storage' ? storageRoute(route.page, route.name) : pulsarRoute(route.page, route.ns, route.name)
 
 export function entityRoute(key) {
   const [kind, ns, name, extra] = key.split('/')

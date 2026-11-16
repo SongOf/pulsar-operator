@@ -14,10 +14,13 @@ rules:
     verbs: [get, list]
   - apiGroups: [storage.diskfleet.io]
     resources: [diskpools]
-    verbs: [get, list, create]
+    verbs: [get, list, create, patch]
   - apiGroups: ['']
-    resources: [nodes, persistentvolumes, events]
+    resources: [persistentvolumes, events]
     verbs: [get, list]
+  - apiGroups: ['']
+    resources: [nodes]
+    verbs: [get, list, patch]
   - apiGroups: ['']
     resources: [persistentvolumeclaims]
     verbs: [get, list, create, patch, delete]
@@ -33,6 +36,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: diskfleet-api
+subjects:
+  - kind: ServiceAccount
+    name: diskfleet-api
+    namespace: diskfleet-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: diskfleet-api-agent-observer
+  namespace: diskfleet-system
+rules:
+  - apiGroups: [apps]
+    resources: [daemonsets]
+    resourceNames: [diskfleet-agent]
+    verbs: [get]
+  - apiGroups: ['']
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: diskfleet-api-agent-observer
+  namespace: diskfleet-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: diskfleet-api-agent-observer
 subjects:
   - kind: ServiceAccount
     name: diskfleet-api

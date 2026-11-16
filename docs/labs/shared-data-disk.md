@@ -122,7 +122,7 @@ PREFLIGHT_ONLY=1 TIMEOUT=600 bash test/e2e/system/pulsar-shared-disk.sh \
 
 ## 控制台与现有集群维护
 
-访问上面的任一 NodePort，Pulsar 和内嵌存储页面使用两个独立 Token。在有集群权限的私有终端按登录需要读取，命令仅显示在指南中，仓库和验收报告不记录 Token 值：
+访问上面的任一 NodePort，统一前端中的 Pulsar 和存储页面使用两个独立 Token。在有集群权限的私有终端按登录需要读取，命令仅显示在指南中，仓库和验收报告不记录 Token 值：
 
 ```bash
 kubectl --kubeconfig=/etc/kubernetes/admin.conf -n pulsar-operator-system \

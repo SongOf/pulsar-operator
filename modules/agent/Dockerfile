@@ -12,6 +12,6 @@ COPY internal/kubeconfig/ internal/kubeconfig/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /diskfleet-agent ./cmd/agent
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends lvm2 util-linux udev ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends lvm2 util-linux udev fio ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=build /diskfleet-agent /usr/local/bin/diskfleet-agent
 ENTRYPOINT ["/usr/local/bin/diskfleet-agent"]

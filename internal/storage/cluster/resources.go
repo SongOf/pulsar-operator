@@ -186,6 +186,11 @@ func fleetStorageClass(name string, pools []object) (object, error) {
 // FleetStorageClass renders the same immutable reviewed pool snapshot used by
 // the observation verifier. It performs no Kubernetes writes or device IO.
 func FleetStorageClass(name string, pools []model.Object) (*unstructured.Unstructured, error) {
+	for _, pool := range pools {
+		if err := model.RequireAllocation(pool); err != nil {
+			return nil, err
+		}
+	}
 	value, err := fleetStorageClass(name, pools)
 	if err != nil {
 		return nil, err

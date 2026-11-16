@@ -146,16 +146,50 @@ func (c *Cluster) read(ctx context.Context) (map[string][]object, error) {
 	if err != nil {
 		return nil, err
 	}
+	nodes, err := c.listKube(ctx, nodesResource, "")
+	if err != nil {
+		return nil, err
+	}
+	nodeUIDs := map[string]string{}
+	for _, node := range nodes {
+		if str(node, "metadata", "deletionTimestamp") == "" {
+			nodeUIDs[str(node, "metadata", "name")] = str(node, "metadata", "uid")
+		}
+	}
+	allClasses, err := c.listKube(ctx, classesResource, "")
+	if err != nil {
+		return nil, err
+	}
+	classNames := map[string]bool{}
+	classObjects := map[string]object{}
+	for _, class := range allClasses {
+		classNames[str(class, "metadata", "name")] = true
+		classObjects[str(class, "metadata", "name")] = class
+	}
 	conflicts := conflictingPools(rawPools)
 	devices := map[string]object{}
 	trustedRaw, trustedPools := []object{}, []object{}
 	for _, raw := range rawPools {
-		meta, spec, status := asObject(raw["metadata"]), asObject(raw["spec"]), asObject(raw["status"])
-		name := str(meta, "name")
-		capacity, free := model.Int64(status["capacityBytes"]), model.Int64(status["availableBytes"])
-		pool := object{"id": name, "uid": str(meta, "uid"), "name": fallback(at(meta, "annotations", label+"display-name"), name), "node": str(spec, "nodeName"), "vgName": str(spec, "vgName"), "capacityBytes": capacity, "allocatedBytes": max(int64(0), capacity-free), "availableBytes": free, "state": fallback(status["phase"], "Pending"), "diskIds": []any{}, "storageClass": str(status, "storageClass"), "topologyHostname": str(status, "topologyHostname"), "createdAt": str(meta, "creationTimestamp"), "message": str(status, "message")}
+		spec := asObject(raw["spec"])
+		name := str(raw, "metadata", "name")
+		pool := poolObject(raw)
+		typed, err := typedPool(raw)
+		if err != nil {
+			return nil, err
+		}
+		model.DescribeAllocation(pool, typed, nodeUIDs[str(spec, "nodeName")], classNames[className(name)])
+		if pool["canCreateVolume"] == true {
+			actual := classObjects[className(name)]
+			if typed.Status.StorageClass != className(typed.Name) || str(actual, "metadata", "annotations", label+"pool-uid") != string(typed.UID) || !classMatches(actual, storageClass(raw, typed.Status.TopologyHostname)) {
+				pool["canCreateVolume"] = false
+				pool["allocationState"] = "Blocked"
+				pool["allocationReasons"] = []string{"StorageClass 安全配置发生漂移"}
+			}
+		}
 		if conflicts[name] {
 			pool["state"] = "Conflict"
+			pool["canReview"], pool["canCreateVolume"] = false, false
+			pool["allocationReasons"] = []string{"多个 DiskPool 认领相同设备或 VG"}
 			pool["capacityBytes"], pool["allocatedBytes"], pool["availableBytes"] = int64(0), int64(0), int64(0)
 			pool["message"] = "多个 DiskPool 认领相同节点的 VG 或设备；无法确认唯一所有者，容量不计入可分配汇总"
 		} else {
@@ -268,10 +302,6 @@ func (c *Cluster) read(ctx context.Context) (map[string][]object, error) {
 		}
 		stats[node].allocated += model.Int64(pool["allocatedBytes"])
 	}
-	nodes, err := c.listKube(ctx, nodesResource, label+"enabled=true")
-	if err != nil {
-		return nil, err
-	}
 	for _, raw := range nodes {
 		meta := asObject(raw["metadata"])
 		node := str(meta, "name")
@@ -326,7 +356,13 @@ func (c *Cluster) read(ctx context.Context) (map[string][]object, error) {
 }
 
 func (c *Cluster) List(ctx context.Context, kind string, options model.ListOptions) (model.Page, error) {
-	data, err := c.read(ctx)
+	var data map[string][]object
+	var err error
+	if kind == "nodes" || kind == "disks" {
+		data, err = c.inventory(ctx)
+	} else {
+		data, err = c.read(ctx)
+	}
 	if err != nil {
 		return model.Page{}, err
 	}
@@ -334,6 +370,9 @@ func (c *Cluster) List(ctx context.Context, kind string, options model.ListOptio
 	if !ok {
 		return model.Page{}, model.NewProblem(404, "接口不存在")
 	}
+	return pageItems(items, options), nil
+}
+func pageItems(items []object, options model.ListOptions) model.Page {
 	if options.Limit <= 0 {
 		options.Limit = 50
 	}
@@ -368,7 +407,7 @@ func (c *Cluster) List(ctx context.Context, kind string, options model.ListOptio
 	for _, item := range filtered[start:end] {
 		page.Items = append(page.Items, copyObject(item))
 	}
-	return page, nil
+	return page
 }
 func (c *Cluster) Events(ctx context.Context, options model.ListOptions) (model.Page, error) {
 	return c.store.Events(ctx, options)

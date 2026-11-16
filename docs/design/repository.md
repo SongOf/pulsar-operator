@@ -1,6 +1,6 @@
 # 项目设计
 
-`pulsar-operator` 是统一交付的仓库：Pulsar、Storage 和 Agent 三个模块共用根 Go module，并保留独立进程、镜像和权限。Pulsar 实现位于 `internal/pulsar`，存储管理代码位于 `internal/storage`，模块契约与镜像位于 `modules/storage`，存储页面位于 `web/storage`；节点设备操作位于 `internal/agent`。三个模块通过 Kubernetes 资源契约集成。本文说明代码边界、构建测试、部署组合和兼容原则；运行流程见 [使用指南](../operations/deployment.md)，控制与数据流见 [架构设计](architecture.md)。
+`pulsar-operator` 是统一交付的仓库：Pulsar、Storage 和 Agent 三个模块共用根 Go module，并保留独立进程、镜像和权限。Pulsar 实现位于 `internal/pulsar`，存储管理代码位于 `internal/storage`，模块契约与镜像位于 `modules/storage`，存储与 Pulsar 页面共用 `web/src`；节点设备操作位于 `internal/agent`。三个模块通过 Kubernetes 资源契约集成。本文说明代码边界、构建测试、部署组合和兼容原则；运行流程见 [使用指南](../operations/deployment.md)，控制与数据流见 [架构设计](architecture.md)。
 
 ## 1. 仓库组织
 
@@ -108,8 +108,8 @@ flowchart LR
     Web[web/dist] --> Image[Operator 镜像]
     Main --> Image
     StorageCore[internal/kubeconfig + storage/model/store] --> StorageServices[storage/cluster/httpapi]
-    StorageWeb[web/storage] --> StorageMain[cmd/storage-api]
-    StorageServices --> StorageMain
+    Web --> StorageImage[存储镜像]
+    StorageServices --> StorageMain[cmd/storage-api]
     AgentCore[internal/agent] --> AgentMain[cmd/agent]
     AgentMain --> AgentImage[独立 Agent 镜像]
     AgentImage --> Deploy
@@ -133,8 +133,8 @@ Pulsar、Storage API 与 Agent 之间不通过内部 RPC 触发磁盘操作。St
 | `PulsarWorkspace.jsx` | `/api/clusters` → 集群总览、Broker / Bookie 列表、关系与详情 | 只在 Pulsar 模块挂载；退出时停止轮询并丢弃过期响应；凭证只用于 Pulsar API |
 | `workspace.js` | PSC/BKC 原始对象 → Broker/Bookie 视图与关系 | 显示身份与写入身份分开；严格校验 ownerReference 与 canonical 同名子资源 |
 | `ClusterView.jsx` | scoped view → 状态/配置/升级/容量/活动面板 | Broker 不展示 Bookie 卷操作；受管 Bookie 写父 PSC，异常关系只读 |
-| `StorageWorkspace.jsx` | 七页菜单选择 → `/storage/?embedded=1` 与导航消息 | 先检查 API，再等待同源 iframe 握手；验证 origin/source 和页面白名单 |
-| `web/storage/static` | 嵌入参数与 hash → 原七页交互 | 由 Go API 嵌入提供；隐藏重复导航，保留独立 Token 和 API |
+| `StorageWorkspace.jsx` | 存储页面与节点详情 → Storage API | 独立凭证、取消过期请求，按扫描有效期禁用创建池操作 |
+| `web/dist` | 单一 React 构建 → 两个 API 镜像 | Storage 独立服务以无秘密元数据声明同源 API 地址，Gateway 提供完整两模块 |
 | `internal/pulsar/httpapi` | Kubernetes 对象 → 完整清单、限定范围的 Pod/事件 | 兼容旧字段；后端阻止对受管或孤立 BKC 直接写入 |
 | `internal/storage/httpapi` / `cluster` | 存储 API → DiskPool、PVC/PV 与节点视图 | 保留计划确认、外部 PVC 只读、真实绑定与 UID 前置条件 |
 
@@ -175,7 +175,7 @@ Agent 与 Storage API 已迁入同一个 Go module，分别使用独立镜像。
 | `make test-agent` | Go Agent 单元与恢复测试 | 不需要 envtest、集群或真实设备 |
 | `make build-agent` / `make image-agent` | 独立 Agent 二进制 / 镜像 | 镜像从仓库根 context 构建 |
 | `make test-storage` | Go 存储单元、HTTP、模拟 Kubernetes 与规划测试 | Go；不写物理盘，不连接真实 Kubernetes |
-| `make build-storage` / `make image-storage` | `diskfleet-api`、`storage-plan`、`storage-benchmark` / 存储 API 镜像 | 镜像从仓库根 context 构建，嵌入原生存储页面 |
+| `make build-storage` / `make image-storage` | `diskfleet-api`、`storage-plan`、`storage-benchmark` / 存储 API 镜像 | 镜像从仓库根 context 构建，交付统一 React 构建产物 |
 | `make test-repository` | 预构建存储工具后运行仓库入口与清单检查 | Go 与 Python；有 kubectl 时验证实际清单渲染 |
 | `make image-pulsar`（兼容 `make image`） | Pulsar 镜像和公共前端 | 从仓库根 context 构建，`IMG` 指定镜像名称 |
 | `make images` | 构建 Operator、Storage API 与 Agent 三个镜像 | 容器构建工具、镜像源网络、所需架构 |
@@ -264,7 +264,7 @@ Agent 与 Storage API 已迁入同一个 Go module，分别使用独立镜像。
 - Pulsar UI 与存储 UI 采用各自 API 和 token；统一入口仅改变地址，不扩大生命周期权限。
 - Broker/Bookie 使用独立列表与详情，受管 Bookie 的副本、配置、镜像、容量修改必须写父 `spec.bookkeeper`；readTarget 与 mutation target 不得混用。
 - 关系判断必须核对 ownerReference、namespace、UID 和 canonical 子名称；有所有权证据但关系异常时只读，禁止按同名或标签自动接管。
-- 存储嵌入消息只允许规定通道、kind 与页面键；两端检查 origin/source，不发送 Token，不能把 iframe load 当作 API 就绪。
+- 两个工作区各自维护凭证与请求生命周期；Storage API 地址仅允许同源地址，禁止将凭证发送给另一个模块。
 - 所有外部操作结果区分“请求已接受”“资源已创建”“卷已绑定”“文件系统扩容完成”。
 - 外部 PVC 以只读方式展示，界面引导用户回到父 PulsarCluster 调整；后端同样执行所有权校验，不能只隐藏按钮。
 - 模拟页面必须保留模式提示；禁止把 demo 的目录路径或逻辑配额宣传为真实挂载。
@@ -306,11 +306,11 @@ Storage 与 Agent 分别位于 `internal/storage` 和 `internal/agent`。兼容�
 
 ### ADR-001：Pulsar、Storage、Agent 共用 Go 工程并独立部署
 
-**决定：**Pulsar、Storage API 与 Agent 共用根 Go module，分别保留进程、镜像、ServiceAccount 和权限。Storage 的 HTTP、Kubernetes 管理、SQLite 状态和规划工具使用 Go 实现；存储原生 JavaScript 页面由 Go 嵌入，当前 React/iframe 组合继续使用。
+**决定：**Pulsar、Storage API 与 Agent 共用根 Go module，分别保留进程、镜像、ServiceAccount 和权限。Storage 的 HTTP、Kubernetes 管理、SQLite 状态和规划工具使用 Go 实现；两个控制台共用 React 页面和构建产物，由两个 API 镜像分别提供静态资源。
 
 **理由：**在明确模块职责的同时统一后端工具链，复用 Kubernetes 客户端，保留 DiskPool/PhysicalDisk、宿主恢复日志、原 API 和 SQLite 状态契约。API 仍只修改 Kubernetes 期望状态，节点设备操作仅由 Agent 执行。
 
-**代价：**需要验证旧日志与数据库、HTTP 行为、释放恢复和并发事务兼容；发布前须在目标 Linux/CSI 完成验收。仓库/E2E 辅助工具仍使用 Python，前端保留 React 与原生 JavaScript；这些工具和页面不属于 Go 业务运行代码。
+**代价：**需要验证旧日志与数据库、HTTP 行为、释放恢复和并发事务兼容；发布前须在目标 Linux/CSI 完成验收。仓库/E2E 辅助工具仍使用 Python，前端统一使用 React；辅助工具和页面不属于 Go 业务运行代码。
 
 
 ### ADR-002：以 Kubernetes 存储对象作为集成接口
@@ -347,11 +347,11 @@ Storage 与 Agent 分别位于 `internal/storage` 和 `internal/agent`。兼容�
 
 ### ADR-006：统一入口保留两套凭证
 
-**决定：**根目录 `web/` 保持公用 React 前端，提供 Pulsar / Storage 两个一级入口；Pulsar 内含总览、Broker 与 Bookie，Storage 内含七个存储页面。模块工作区分别维护 API 连接和凭证；同源 iframe 复用完整存储页面，nginx 提供 `/` 和 `/storage/`，路由各自 API。导航协议不传 Token，代理不静态注入另一系统的令牌。
+**决定：**根目录 `web/` 保持公用 React 前端，提供 Pulsar / Storage 两个一级入口；Pulsar 内含总览、Broker 与 Bookie，Storage 内含七个存储页面。模块工作区分别维护 API 连接和凭证；所有页面由同一 React 应用渲染，nginx 提供 `/` 和 `/storage/`，分别路由两个 API。代理不静态注入另一系统的令牌。
 
 **理由：**保留已有七页存储交互与后端保护逻辑，让用户在一个工作空间管理组件与磁盘，同时避免把一个管理 Token 隐式提升为全部磁盘权限。
 
-**代价：**仍需维护 React 与原生页面两套前端；需要双向导航、加载/错误状态、同源嵌入策略与单独浏览器测试。当前分别登录，同源 iframe 不是浏览器强隔离。SSO、细粒度租户权限与独立域名策略属于后续工程。
+**代价：**统一前端需要覆盖组合部署、Storage 独立部署以及独立凭证的交互测试。当前分别登录，共享前端不提供浏览器安全域隔离。SSO、细粒度租户权限与独立域名策略属于后续工程。
 
 ### ADR-007：将离线证据与真实 E2E 分开
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	storagev1 "github.com/SongOf/pulsar-operator/api/storage/v1alpha1"
 	"github.com/SongOf/pulsar-operator/internal/storage/model"
@@ -31,7 +32,7 @@ func (c *Cluster) Plan(ctx context.Context, body object) (object, error) {
 		return nil, model.NewProblem(400, "每个池只能包含一块盘")
 	}
 	c.Invalidate()
-	data, err := c.read(ctx)
+	data, err := c.inventory(ctx, node)
 	if err != nil {
 		return nil, err
 	}
@@ -42,12 +43,15 @@ func (c *Cluster) Plan(ctx context.Context, body object) (object, error) {
 			break
 		}
 	}
-	if disk == nil || str(disk, "node") != node || str(disk, "state") != "Available" || str(disk, "poolId") != "" {
+	if disk == nil || str(disk, "node") != node {
 		return nil, model.NewProblem(409, "磁盘不可用或已纳管")
+	}
+	if disk["canCreatePool"] != true {
+		return nil, model.NewProblem(409, joinReasons(array(disk["reasons"])))
 	}
 	hash := digest(node + ":" + str(disk, "serial"))[:16]
 	vg := "df_" + hash
-	return c.store.SavePlan(ctx, object{"name": name, "node": node, "diskIds": clone(ids), "disks": []any{copyObject(disk)}, "vgName": vg, "resourceName": "pool-" + hash, "confirmation": "接管 " + str(disk, "serial"),
+	return c.store.SavePlan(ctx, object{"name": name, "node": node, "nodeUID": disk["nodeUID"], "diskIds": clone(ids), "disks": []any{copyObject(disk)}, "vgName": vg, "resourceName": "pool-" + hash, "confirmation": "接管 " + str(disk, "serial"),
 		"commands": []any{[]any{"pvcreate", disk["path"]}, []any{"vgcreate", vg, disk["path"]}}, "warnings": []any{"此计划会初始化所选空盘。节点必须显式开启 ENABLE_DISK_WRITES。", "一块盘一个 VG；原始盘不需要挂到 /mnt，业务 LV 由 CSI 挂载。"}})
 }
 
@@ -75,37 +79,70 @@ func (c *Cluster) CreatePool(ctx context.Context, planID, confirmation string) (
 			return err
 		}
 		body := object{"apiVersion": storagev1.GroupVersion.String(), "kind": "DiskPool", "metadata": object{"name": resource, "labels": object{label + "node": nodeLabel(str(plan, "node"))}, "annotations": object{label + "display-name": str(plan, "name")}}, "spec": spec}
-		claims, err := c.listKube(ctx, poolsResource, "")
-		if err != nil {
-			return err
-		}
-		for _, other := range claims {
-			if str(other, "metadata", "name") != resource && claimsOverlap(spec, asObject(other["spec"])) {
-				return model.NewProblem(409, "磁盘或 VG 已由其它 DiskPool 认领："+str(other, "metadata", "name"))
-			}
-		}
 		existing, err := c.get(ctx, poolsResource, resource)
 		if err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 		matches := func(existing object) bool {
-			return equal(existing["spec"], spec) && str(existing, "metadata", "deletionTimestamp") == ""
+			if str(existing, "metadata", "deletionTimestamp") != "" {
+				return false
+			}
+			for _, key := range []string{"nodeName", "vgName", "approved", "devices"} {
+				if !equal(at(existing, "spec", key), spec[key]) {
+					return false
+				}
+			}
+			return true
 		}
 		if existing != nil {
 			if !matches(existing) {
 				return model.NewProblem(409, "磁盘已有参数不同或正在删除的接管请求")
 			}
 		} else {
-			if consumed {
-				return model.NewProblem(409, "原接管资源已删除，拒绝自动重建；请调查磁盘状态")
+			claims, err := c.listKube(ctx, poolsResource, "")
+			if err != nil {
+				return err
+			}
+			for _, other := range claims {
+				if str(other, "metadata", "name") != resource && claimsOverlap(spec, asObject(other["spec"])) {
+					return model.NewProblem(409, "磁盘或 VG 已由其它 DiskPool 认领："+str(other, "metadata", "name"))
+				}
+			}
+			rawNode, err := c.get(ctx, nodesResource, str(plan, "node"))
+			if err != nil {
+				return err
+			}
+			ds, pods, err := c.agentObjects(ctx, str(plan, "node"))
+			if err != nil {
+				return err
+			}
+			node := describeNode(rawNode, ds, pods)
+			if str(plan, "nodeUID") == "" || str(plan, "nodeUID") != str(node, "uid") {
+				return model.NewProblem(409, "节点身份已变化，请重新生成接管计划")
+			}
+			if node["canCreatePool"] != true {
+				return model.NewProblem(409, joinReasons(array(node["reasons"])))
 			}
 			current, err := c.get(ctx, disksResource, str(disk, "id"))
 			if err != nil {
 				return err
 			}
-			actual := asObject(current["spec"])
-			if str(actual, "nodeName") != str(disk, "node") || str(actual, "path") != str(disk, "path") || str(actual, "serial") != str(disk, "serial") || model.Int64(actual["sizeBytes"]) != model.Int64(disk["sizeBytes"]) || str(current, "status", "phase") != "Available" || str(current, "status", "poolName") != "" {
-				return model.NewProblem(409, "磁盘身份或使用状态已变化，请重新生成接管计划")
+			observed := describeDisk(current, node, nil, time.Now())
+			if str(disk, "uid") == "" || str(disk, "uid") != str(observed, "uid") || str(observed, "node") != str(disk, "node") || str(observed, "path") != str(disk, "path") || str(observed, "serial") != str(disk, "serial") || model.Int64(observed["sizeBytes"]) != model.Int64(disk["sizeBytes"]) || observed["fresh"] != true {
+				return model.NewProblem(409, "磁盘身份或观察有效期已变化，请重新生成接管计划")
+			}
+			if consumed {
+				return model.NewProblem(409, "原接管资源已删除，拒绝自动重建；请调查磁盘状态")
+			}
+			if observed["canCreatePool"] != true {
+				return model.NewProblem(409, joinReasons(array(observed["reasons"])))
+			}
+			// Approval and observation may expire while Kubernetes reads are in flight.
+			if _, _, err = c.store.ReadPlan(ctx, tx, planID, confirmation); err != nil {
+				return err
+			}
+			if describeDisk(current, node, nil, time.Now())["fresh"] != true {
+				return model.NewProblem(409, "磁盘观察已过期，请等待 Agent 新一轮上报")
 			}
 			_, err = c.create(ctx, poolsResource, body)
 			if apierrors.IsAlreadyExists(err) {
@@ -174,6 +211,16 @@ func (c *Cluster) CreateVolume(ctx context.Context, body object) (object, error)
 	}
 	if pool == nil || str(pool, "state") != "Ready" || str(pool, "storageClass") == "" {
 		return nil, model.NewProblem(409, "存储池或 StorageClass 尚未就绪")
+	}
+	live, err := c.Pool(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	if live["canCreateVolume"] != true {
+		return nil, model.NewProblem(409, "存储池尚未完成有效压测和人工审核")
+	}
+	if live["uid"] != pool["uid"] {
+		return nil, model.NewProblem(409, "存储池身份已变化，请刷新后重试")
 	}
 	actual, err := c.get(ctx, classesResource, str(pool, "storageClass"))
 	if err != nil {

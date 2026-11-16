@@ -26,7 +26,7 @@ make test
 
 Pulsar/Agent 集成需要本地 `kube-apiserver`、`etcd`，默认由 setup-envtest 获取。可设置 `KUBEBUILDER_ASSETS` 指向已有目录，路径允许包含空格；缺失或不可执行会失败，不会默默跳过。脚本及测试显式禁用 `USE_EXISTING_CLUSTER`，测试环境不包含 kubelet、scheduler、CSI，因此不证明真实调度或磁盘操作。
 
-Python 仅用于测试和部署辅助，使用标准库；Node 检查使用原页面模板和 Go API 模拟快照。Shell 前置检查用临时 fake kubectl/curl，所有写操作由夹具拒绝。`test/support/fake_timeout.py` 仅为这些假进程提供限时运行，不用于生产 E2E，也不替代 GNU timeout 行为验证。有 kubectl 时仓库测试会实际渲染 Kustomize；无 kubectl 时相应渲染用例明确跳过。
+Python 仅用于测试和部署辅助，使用标准库；Node 检查使用共享 React 存储模型和 Go API 模拟快照。Shell 前置检查用临时 fake kubectl/curl，所有写操作由夹具拒绝。`test/support/fake_timeout.py` 仅为这些假进程提供限时运行，不用于生产 E2E，也不替代 GNU timeout 行为验证。有 kubectl 时仓库测试会实际渲染 Kustomize；无 kubectl 时相应渲染用例明确跳过。
 
 真实 E2E 需要独立测试集群、现有 Ready 池/CSI、正确凭证、GNU timeout 和足够容量，会创建/修改工作负载。Pulsar 生命周期入口是 `modules/pulsar/scripts/dev.sh e2e`，存储卷入口是 `modules/storage/scripts/dev.sh e2e CLASS`；联合流程见[验收手册](pulsar-storage-e2e.md)。Agent 的真实磁盘行为通过 Storage/联合流程验证，没有另设自动初始化盘的 Agent E2E。历史结果见[历史验证记录](../history/validation.md)。
 

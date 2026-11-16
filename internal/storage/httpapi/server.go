@@ -31,7 +31,7 @@ type Server struct {
 	Mode    string
 	Token   string
 	Backend model.Backend
-	// Static includes the static/ prefix (for example the embedded web.FS).
+	// Static is the shared React build directory, containing index.html and assets/.
 	Static fs.FS
 	Logger *slog.Logger
 }
@@ -79,7 +79,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Match literal API paths and decode only the resource identifier once.
 	route := r.URL.EscapedPath()
-	if r.Method == http.MethodGet && (route == "/" || strings.HasPrefix(route, "/static/")) {
+	if r.Method == http.MethodGet && (route == "/" || strings.HasPrefix(route, "/assets/")) {
 		s.serveStatic(w, r.URL.Path)
 		return
 	}
@@ -122,6 +122,42 @@ func validateHeaders(r *http.Request) error {
 }
 
 func (s *Server) route(ctx context.Context, method, route string, query url.Values, body model.Object) (any, error) {
+	parts := strings.Split(route, "/")
+	if (method == http.MethodGet && len(parts) == 4 || method == http.MethodPost && len(parts) == 5 && parts[4] == "review") && parts[1] == "api" && parts[2] == "pools" {
+		id, err := decodeIdentifier(parts[3])
+		if err != nil {
+			return nil, err
+		}
+		backend, ok := s.Backend.(model.PoolBackend)
+		if !ok {
+			return nil, model.NewProblem(404, "存储池审核不可用")
+		}
+		if method == http.MethodPost {
+			return backend.ReviewPool(ctx, id, body)
+		}
+		return backend.Pool(ctx, id)
+	}
+	if (method == http.MethodGet && len(parts) == 4 || method == http.MethodPost && len(parts) == 5 && parts[4] == "agent") && parts[1] == "api" && parts[2] == "nodes" {
+		name, err := url.PathUnescape(parts[3])
+		if err != nil {
+			return nil, model.NewProblem(400, "无效节点名")
+		}
+		if _, err = model.NodeName(name); err != nil {
+			return nil, err
+		}
+		backend, ok := s.Backend.(model.NodeBackend)
+		if !ok {
+			return nil, model.NewProblem(404, "节点管理不可用")
+		}
+		if method == http.MethodPost {
+			return backend.EnableAgent(ctx, name, body)
+		}
+		opts, err := listOptions(query)
+		if err != nil {
+			return nil, err
+		}
+		return backend.Node(ctx, name, opts)
+	}
 	if method == http.MethodGet {
 		switch route {
 		case "/api/config":
@@ -238,16 +274,23 @@ func hasControl(value string) bool {
 func (s *Server) serveStatic(w http.ResponseWriter, route string) {
 	name := "index.html"
 	if route != "/" {
-		name = strings.TrimPrefix(route, "/static/")
+		name = strings.TrimPrefix(route, "/")
 	}
 	if s.Static == nil || !fs.ValidPath(name) || strings.Contains(name, "\\") || hasControl(name) {
 		s.sendError(w, model.NewProblem(404, "文件不存在"))
 		return
 	}
-	data, err := fs.ReadFile(s.Static, "static/"+name)
+	data, err := fs.ReadFile(s.Static, name)
 	if err != nil {
 		s.sendError(w, model.NewProblem(404, "文件不存在"))
 		return
+	}
+	if name == "index.html" {
+		// The same build also runs behind the combined gateway. Only a page
+		// served directly by this backend is marked Storage-only. Keep the API
+		// relative so reverse proxies can mount the service below /storage/.
+		const deployment = `<meta name="console-service" content="storage"><meta name="storage-api-base" content="api">`
+		data = []byte(strings.Replace(string(data), "</head>", deployment+"</head>", 1))
 	}
 	contentType := mime.TypeByExtension(path.Ext(name))
 	if contentType == "" {

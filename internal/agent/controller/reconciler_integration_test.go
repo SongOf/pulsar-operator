@@ -5,11 +5,13 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,23 +73,67 @@ func TestIntegrationAgentReconciliationAgainstAPIServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	backend := &fakeBackend{}
+	now := time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC)
 	disk := model.Disk{Path: "/dev/disk/by-id/wwn-test", Serial: "SER001", SizeBytes: 100 << 30, Model: "TEST", Media: "SSD", State: "Available"}
 	r := &Reconciler{
 		Client: client, Backend: backend, NodeName: "worker-01", WritesEnabled: true,
 		Discover: func(context.Context) ([]model.Disk, error) { return []model.Disk{disk}, nil },
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now:      func() time.Time { return now },
 	}
 	if err := r.ReconcileOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
 	poolName, diskName, className := created.GetName(), DiskName(r.NodeName, disk), StorageClassName(created.GetName())
+	awaiting := get(t, client, Pools, poolName)
+	if phase(t, client, Pools, poolName) != "AwaitingReview" || len(backend.calls) != 1 || len(backend.benchmarkCalls) != 1 {
+		t.Fatalf("benchmark did not stop at the manual approval gate: %+v", awaiting.Object)
+	}
+	assertNoClass(t, client, poolName)
+	if err := r.ReconcileOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if get(t, client, Pools, poolName).GetResourceVersion() != awaiting.GetResourceVersion() || len(backend.benchmarkCalls) != 1 {
+		t.Fatal("unreviewed result was rerun or rewritten")
+	}
+	assertNoClass(t, client, poolName)
+	t.Run("schema rejects incomplete or blank rejection", func(t *testing.T) {
+		for _, note := range []string{"", " \t\n", "\u00a0\u2003\u0085", strings.Repeat("界", 1025)} {
+			obj := get(t, client, Pools, poolName)
+			setHumanReview(t, obj, "Rejected", note)
+			if _, err := client.Resource(Pools).Update(ctx, obj, metav1.UpdateOptions{}); !apierrors.IsInvalid(err) {
+				t.Fatalf("invalid rejection note accepted: %v", err)
+			}
+		}
+		for _, key := range []string{"poolUID", "runID", "resultDigest", "decision", "reviewedAt"} {
+			obj := get(t, client, Pools, poolName)
+			setHumanReview(t, obj, "Approved", "")
+			unstructured.RemoveNestedField(obj.Object, "spec", "allocationApproval", key)
+			if _, err := client.Resource(Pools).Update(ctx, obj, metav1.UpdateOptions{}); !apierrors.IsInvalid(err) {
+				t.Fatalf("approval without %s accepted: %v", key, err)
+			}
+		}
+	})
+	reviewPool(t, client, poolName, "Rejected", "review requires follow-up")
+	if err := r.ReconcileOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if phase(t, client, Pools, poolName) != "Rejected" {
+		t.Fatal("rejection not reflected")
+	}
+	assertNoClass(t, client, poolName)
+	// This spec update represents the user's separate review, not controller IO.
+	reviewPool(t, client, poolName, "Approved", "")
+	if err := r.ReconcileOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
 	ready := get(t, client, Pools, poolName)
 	physical := get(t, client, Disks, diskName)
 	class := get(t, client, Classes, className)
 	if phase(t, client, Pools, poolName) != "Ready" || !reflect.DeepEqual(ready.GetFinalizers(), []string{Finalizer}) {
 		t.Fatalf("pool did not become Ready with retention protection: %+v", ready.Object)
 	}
-	if ready.GetResourceVersion() == created.GetResourceVersion() || len(backend.calls) != 1 || backend.calls[0].uid != string(created.GetUID()) {
+	if ready.GetResourceVersion() == created.GetResourceVersion() || len(backend.calls) != 2 || backend.calls[0].uid != string(created.GetUID()) || len(backend.benchmarkCalls) != 1 {
 		t.Fatal("actual API server identity or updated resourceVersion was not used")
 	}
 	observed, _, err := unstructured.NestedInt64(ready.Object, "status", "observedGeneration")
@@ -104,6 +150,65 @@ func TestIntegrationAgentReconciliationAgainstAPIServer(t *testing.T) {
 	if phase(t, client, Disks, diskName) != "Managed" || physical.GetResourceVersion() == "" {
 		t.Fatalf("PhysicalDisk status was not persisted: %+v", physical.Object)
 	}
+	nodeUID := string(get(t, client, Nodes, r.NodeName).GetUID())
+	assertObservation(t, diskStatus(t, client, diskName), now, 36*time.Second, nodeUID)
+
+	t.Run("approved review cannot be changed or removed", func(t *testing.T) {
+		for _, field := range []string{"remove", "note", "decision", "runID", "resultDigest", "reviewedAt", "poolUID"} {
+			obj := get(t, client, Pools, poolName)
+			if field == "remove" {
+				unstructured.RemoveNestedField(obj.Object, "spec", "allocationApproval")
+			} else {
+				value := "changed"
+				switch field {
+				case "decision":
+					value = "Rejected"
+				case "runID":
+					value = strings.Repeat("a", 32)
+				case "resultDigest":
+					value = strings.Repeat("a", 64)
+				case "reviewedAt":
+					value = "2026-11-16T01:00:00Z"
+				}
+				if err := unstructured.SetNestedField(obj.Object, value, "spec", "allocationApproval", field); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := client.Resource(Pools).Update(ctx, obj, metav1.UpdateOptions{}); !apierrors.IsInvalid(err) {
+				t.Fatalf("approved %s was mutable: %v", field, err)
+			}
+		}
+	})
+
+	t.Run("benchmark schema rejects malformed report fields", func(t *testing.T) {
+		for _, field := range []string{"runID", "resultDigest", "profile", "phase", "testSizeBytes", "negative metric", "missing metric", "duplicate workload", "too many workloads"} {
+			obj := get(t, client, Pools, poolName)
+			status, _, err := unstructured.NestedMap(obj.Object, "status")
+			if err != nil {
+				t.Fatal(err)
+			}
+			b := status["benchmark"].(map[string]interface{})
+			switch field {
+			case "runID", "resultDigest":
+				b[field] = "invalid-hex"
+			case "profile", "phase":
+				b[field] = "unknown"
+			case "testSizeBytes":
+				b[field] = int64(2 << 30)
+			case "negative metric":
+				b["workloads"].([]interface{})[0].(map[string]interface{})["latencyMeanNs"] = float64(-1)
+			case "missing metric":
+				delete(b["workloads"].([]interface{})[0].(map[string]interface{}), "iops")
+			case "duplicate workload":
+				b["workloads"].([]interface{})[1].(map[string]interface{})["name"] = "seq-write"
+			case "too many workloads":
+				b["workloads"] = append(b["workloads"].([]interface{}), b["workloads"].([]interface{})[0])
+			}
+			if err := r.status(ctx, Pools, obj, status); !apierrors.IsInvalid(err) {
+				t.Fatalf("invalid report %s accepted: %v", field, err)
+			}
+		}
+	})
 
 	t.Run("unchanged reconcile preserves resource versions", func(t *testing.T) {
 		if err := r.ReconcileOnce(ctx); err != nil {
@@ -116,8 +221,109 @@ func TestIntegrationAgentReconciliationAgainstAPIServer(t *testing.T) {
 		}
 	})
 
+	t.Run("successful scan refreshes only the physical observation", func(t *testing.T) {
+		now = now.Add(30 * time.Second)
+		if err := r.ReconcileOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+		assertObservation(t, diskStatus(t, client, diskName), now, 36*time.Second, nodeUID)
+		if get(t, client, Disks, diskName).GetResourceVersion() == physical.GetResourceVersion() ||
+			get(t, client, Pools, poolName).GetResourceVersion() != ready.GetResourceVersion() ||
+			get(t, client, Classes, className).GetResourceVersion() != class.GetResourceVersion() {
+			t.Fatal("observation refresh must update the disk without unnecessary pool/class writes")
+		}
+	})
+
+	t.Run("schema preserves optional timestamps and rejects malformed evidence", func(t *testing.T) {
+		for _, change := range []map[string]interface{}{
+			{"lastObservedTime": "not-a-time"}, {"validUntil": "2026-99-99T00:00:00Z"}, {"nodeUID": ""},
+		} {
+			current := get(t, client, Disks, diskName)
+			status, _, err := unstructured.NestedMap(current.Object, "status")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key, value := range change {
+				status[key] = value
+			}
+			if err := r.status(ctx, Disks, current, status); !apierrors.IsInvalid(err) {
+				t.Fatalf("invalid freshness evidence accepted (%v): %v", change, err)
+			}
+		}
+		// Old resources remain schema-compatible without the optional fields.
+		legacy := physical.DeepCopy()
+		legacy.SetName("legacy-observation")
+		legacy.SetUID("")
+		legacy.SetResourceVersion("")
+		delete(legacy.Object, "status")
+		created, err := client.Resource(Disks).Create(ctx, legacy, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.status(ctx, Disks, created, map[string]interface{}{"phase": "Protected"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Resource(Disks).Delete(ctx, legacy.GetName(), metav1.DeleteOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("failed and missing scans expire without renewal", func(t *testing.T) {
+		before := diskStatus(t, client, diskName)
+		now = now.Add(time.Minute)
+		r.Discover = func(context.Context) ([]model.Disk, error) { return []model.Disk{disk}, errors.New("scan failed") }
+		if r.ReconcileOnce(ctx) == nil {
+			t.Fatal("failed scan accepted")
+		}
+		if actual := diskStatus(t, client, diskName); !reflect.DeepEqual(actual, before) || actual.ValidUntil.Time.After(now) {
+			t.Fatalf("failed observation renewed: %+v", actual)
+		}
+		r.Discover = func(context.Context) ([]model.Disk, error) { return nil, nil }
+		if err := r.ReconcileOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+		status := diskStatus(t, client, diskName)
+		if status.Phase != "Offline" {
+			t.Fatal("missing disk not Offline")
+		}
+		assertObservation(t, status, before.LastObservedTime.Time, 36*time.Second, nodeUID)
+		r.Discover = func(context.Context) ([]model.Disk, error) { return []model.Disk{disk}, nil }
+	})
+
+	t.Run("same-name Node recreation requires a new successful observation", func(t *testing.T) {
+		before := diskStatus(t, client, diskName)
+		node := get(t, client, Nodes, r.NodeName)
+		if err := client.Resource(Nodes).Delete(ctx, r.NodeName, metav1.DeleteOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		node.SetUID("")
+		node.SetResourceVersion("")
+		node.SetCreationTimestamp(metav1.Time{})
+		replacement, err := client.Resource(Nodes).Create(ctx, node, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replacement.GetUID() == types.UID(nodeUID) {
+			t.Fatal("Node was not recreated")
+		}
+		r.Discover = func(context.Context) ([]model.Disk, error) { return nil, errors.New("scan failed") }
+		if r.ReconcileOnce(ctx) == nil {
+			t.Fatal("failed scan accepted")
+		}
+		if actual := diskStatus(t, client, diskName); !reflect.DeepEqual(actual, before) {
+			t.Fatal("replacement Node renewed an old observation without a successful scan")
+		}
+		r.Discover = func(context.Context) ([]model.Disk, error) { return []model.Disk{disk}, nil }
+		if err := r.ReconcileOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+		nodeUID = string(replacement.GetUID())
+		assertObservation(t, diskStatus(t, client, diskName), now, 36*time.Second, nodeUID)
+	})
+
 	t.Run("stale status update conflicts", func(t *testing.T) {
 		stale := get(t, client, Pools, poolName)
+		previousPhase := phase(t, client, Pools, poolName)
 		changed := stale.DeepCopy()
 		changed.SetAnnotations(map[string]string{"test.storage.diskfleet.io/concurrent-update": "true"})
 		if _, err := client.Resource(Pools).Update(ctx, changed, metav1.UpdateOptions{}); err != nil {
@@ -126,7 +332,7 @@ func TestIntegrationAgentReconciliationAgainstAPIServer(t *testing.T) {
 		if err := r.status(ctx, Pools, stale, map[string]interface{}{"phase": "Error", "message": "stale writer"}); !apierrors.IsConflict(err) {
 			t.Fatalf("expected resourceVersion conflict, got %v", err)
 		}
-		if phase(t, client, Pools, poolName) != "Ready" {
+		if phase(t, client, Pools, poolName) != previousPhase {
 			t.Fatal("stale status write overwrote the current object")
 		}
 	})

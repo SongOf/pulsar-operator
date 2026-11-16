@@ -58,3 +58,20 @@ test('navigation builders validate page names and resource boundaries', () => {
   assert.equal(pulsarRoute('bookies', 'ns', 'name/extra'), 'pulsar/bookies')
   assert.equal(storageRoute('https://other.test'), 'storage/overview')
 })
+
+test('physical node details retain their identity in shared navigation', () => {
+  const route = { module: 'storage', page: 'nodes', name: 'worker.example' }
+  assert.deepEqual(parseRoute('#/storage/nodes/worker.example'), route)
+  assert.equal(routePath(route), 'storage/nodes/worker.example')
+  assert.equal(storageRoute('nodes', 'worker.example'), 'storage/nodes/worker.example')
+  assert.deepEqual(parseRoute('#/storage/nodes/worker%2Fextra'), { module: 'storage', page: 'overview' })
+  assert.deepEqual(parseRoute('#/storage/nodes/worker/extra'), { module: 'storage', page: 'overview' })
+})
+
+test('pool detail and review navigation round-trips the pool identity', () => {
+  const route = { module: 'storage', page: 'pools', name: 'pool-one' }
+  assert.deepEqual(parseRoute('#/storage/pools/pool-one'), route)
+  assert.equal(routePath(route), 'storage/pools/pool-one')
+  assert.equal(storageRoute('pools', 'pool-one'), 'storage/pools/pool-one')
+  assert.deepEqual(parseRoute('#/storage/pools/pool%2Fother'), { module: 'storage', page: 'overview' })
+})

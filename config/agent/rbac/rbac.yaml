@@ -20,7 +20,7 @@ rules:
     verbs: [get, list, patch]
   - apiGroups: [storage.k8s.io]
     resources: [storageclasses]
-    verbs: [get, create]
+    verbs: [get, list, create]
   - apiGroups: ['']
     resources: [nodes]
     verbs: [get]

@@ -12,9 +12,11 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
+	"time"
 
 	storagev1 "github.com/SongOf/pulsar-operator/api/storage/v1alpha1"
 	"github.com/SongOf/pulsar-operator/internal/agent/model"
+	"github.com/SongOf/pulsar-operator/internal/storage/poolstate"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -50,6 +52,10 @@ type Reconciler struct {
 	NodeName      string
 	WritesEnabled bool
 	Logger        *slog.Logger
+	// ReconcileInterval is the configured scan period before the loop's jitter.
+	// A standalone ReconcileOnce defaults to 30 seconds.
+	ReconcileInterval time.Duration
+	Now               func() time.Time
 }
 
 type poolSpec = storagev1.DiskPoolSpec
@@ -63,24 +69,36 @@ type pool struct {
 // and physical disks. All nodes' claims are included in conflict detection;
 // mutable labels must never hide a competing claim.
 func (r *Reconciler) ReconcileOnce(ctx context.Context) error {
+	return r.reconcile(ctx, true)
+}
+
+func (r *Reconciler) claims(ctx context.Context) ([]pool, error) {
 	if r.NodeName == "" || r.Client == nil || r.Backend == nil || r.Discover == nil {
-		return errors.New("node name, Kubernetes client, backend and discovery are required")
+		return nil, errors.New("node name, Kubernetes client, backend and discovery are required")
 	}
 	objects, err := r.list(ctx, Pools, "")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	claims := make([]pool, 0, len(objects))
 	for i := range objects {
 		var spec poolSpec
 		value, ok := objects[i].Object["spec"].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("DiskPool %s has no spec", objects[i].GetName())
+			return nil, fmt.Errorf("DiskPool %s has no spec", objects[i].GetName())
 		}
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(value, &spec); err != nil {
-			return fmt.Errorf("decode DiskPool %s: %w", objects[i].GetName(), err)
+			return nil, fmt.Errorf("decode DiskPool %s: %w", objects[i].GetName(), err)
 		}
 		claims = append(claims, pool{object: &objects[i], spec: spec})
+	}
+	return claims, nil
+}
+
+func (r *Reconciler) reconcile(ctx context.Context, discover bool) error {
+	claims, err := r.claims(ctx)
+	if err != nil {
+		return err
 	}
 	c := cycle{r: r, claims: claims}
 	var failures []error
@@ -94,8 +112,10 @@ func (r *Reconciler) ReconcileOnce(ctx context.Context) error {
 		}
 		local = append(local, claim)
 	}
-	if err := r.reconcileDisks(ctx, local); err != nil {
-		failures = append(failures, err)
+	if discover {
+		if err := r.reconcileDisks(ctx, local); err != nil {
+			failures = append(failures, err)
+		}
 	}
 	return errors.Join(failures...)
 }
@@ -104,6 +124,7 @@ type cycle struct {
 	r        *Reconciler
 	claims   []pool
 	hostname string
+	nodeUID  string
 }
 
 func (c *cycle) reconcilePool(ctx context.Context, p pool) error {
@@ -129,7 +150,7 @@ func (c *cycle) reconcilePool(ctx context.Context, p pool) error {
 	case !c.r.WritesEnabled:
 		status["phase"], status["message"] = "WritesDisabled", "Agent ENABLE_DISK_WRITES is false; no disk commands executed."
 	default:
-		result, class, hostname, err := c.preparePool(ctx, p)
+		err := c.reconcileAllocation(ctx, p, status)
 		if err != nil {
 			message := []rune(err.Error())
 			if len(message) > 1500 {
@@ -141,10 +162,6 @@ func (c *cycle) reconcilePool(ctx context.Context, p pool) error {
 				logger = slog.Default()
 			}
 			logger.Error("pool reconciliation failed", "pool", p.object.GetName(), "error", err)
-		} else {
-			status["phase"], status["message"] = "Ready", "Volume group ready; OpenEBS CSI provisions PVCs."
-			status["storageClass"], status["topologyHostname"] = class, hostname
-			status["capacityBytes"], status["availableBytes"] = result.CapacityBytes, result.AvailableBytes
 		}
 	}
 	return c.r.status(ctx, Pools, p.object, status)
@@ -174,6 +191,10 @@ func (c *cycle) preparePool(ctx context.Context, p pool) (model.PoolResult, stri
 			return empty, "", "", errors.New("Node requires a valid kubernetes.io/hostname topology label")
 		}
 		c.hostname = hostname
+		if node.GetUID() == "" || node.GetDeletionTimestamp() != nil {
+			return empty, "", "", errors.New("a live Node UID is required")
+		}
+		c.nodeUID = string(node.GetUID())
 	}
 	desired := storageClass(p, c.hostname)
 	class := desired.GetName()
@@ -189,8 +210,17 @@ func (c *cycle) preparePool(ctx context.Context, p pool) (model.PoolResult, stri
 	previousClass, _, _ := unstructured.NestedString(p.object.Object, "status", "storageClass")
 	previousHost, _, _ := unstructured.NestedString(p.object.Object, "status", "topologyHostname")
 	legacy := existing != nil && previousClass == class && previousHost == c.hostname
-	result, err := c.r.Backend.EnsurePool(ctx, p.spec.VGName, p.spec.Devices, true, uid, legacy)
+	approved, err := decodePool(p.object)
+	if err != nil || poolstate.Approved(approved, c.nodeUID) != nil {
+		return empty, "", "", errors.New("human approval of the current benchmark is required before publishing a StorageClass")
+	}
+	result, err := c.ensurePool(ctx, p, legacy, true)
 	if err != nil {
+		return empty, "", "", err
+	}
+	// Re-read identity and approval after device IO. Never publish a class for
+	// a deleted/recreated pool or a result that changed while preparing the VG.
+	if err := c.r.guardPool(ctx, p, c.nodeUID, c.hostname, true); err != nil {
 		return empty, "", "", err
 	}
 	// Disk initialization can take time. Re-read the class afterwards: the
@@ -298,10 +328,37 @@ func (r *Reconciler) status(ctx context.Context, resource schema.GroupVersionRes
 }
 
 func (r *Reconciler) reconcileDisks(ctx context.Context, pools []pool) error {
+	node, err := r.Client.Resource(Nodes).Get(ctx, r.NodeName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("read discovery node: %w", err)
+	}
+	if node.GetUID() == "" || node.GetDeletionTimestamp() != nil {
+		return errors.New("discovery requires a live Node with a UID")
+	}
 	discovered, err := r.Discover(ctx)
 	if err != nil {
 		return fmt.Errorf("discover disks: %w", err)
 	}
+	observed := time.Now()
+	if r.Now != nil {
+		observed = r.Now()
+	}
+	// Do not associate a scan of the old Node with a same-name replacement.
+	currentNode, err := r.Client.Resource(Nodes).Get(ctx, r.NodeName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("recheck discovery node: %w", err)
+	}
+	if currentNode.GetUID() != node.GetUID() || currentNode.GetDeletionTimestamp() != nil {
+		return errors.New("Node identity changed during disk discovery")
+	}
+	interval := r.ReconcileInterval
+	if interval == 0 {
+		interval = 30 * time.Second
+	}
+	interval = max(interval, 10*time.Second)
+	// Run waits for up to one period plus 20% jitter. Never renew stale
+	// observations based only on a healthy process or a failed scan.
+	validUntil := observed.Add(interval + interval/5)
 	objects, err := r.list(ctx, Disks, NodeLabel+"="+NodeLabelValue(r.NodeName))
 	if err != nil {
 		return err
@@ -314,7 +371,7 @@ func (r *Reconciler) reconcileDisks(ctx context.Context, pools []pool) error {
 	managed := map[model.Device]string{}
 	for _, p := range pools {
 		phase, _, _ := unstructured.NestedString(p.object.Object, "status", "phase")
-		if phase == "Ready" || phase == "Retained" {
+		if phase == "Ready" || phase == "Retained" || phase == "Benchmarking" || phase == "AwaitingReview" || phase == "Rejected" || phase == "BenchmarkFailed" || phase == "LegacyUnreviewed" {
 			for _, device := range p.spec.Devices {
 				managed[device] = p.object.GetName()
 			}
@@ -366,7 +423,11 @@ func (r *Reconciler) reconcileDisks(ctx context.Context, pools []pool) error {
 		for i, reason := range reasons {
 			values[i] = reason
 		}
-		if err := r.status(ctx, Disks, current, map[string]interface{}{"phase": phase, "reasons": values, "poolName": owner}); err != nil {
+		if err := r.status(ctx, Disks, current, map[string]interface{}{
+			"phase": phase, "reasons": values, "poolName": owner,
+			"lastObservedTime": observed.UTC().Format(time.RFC3339),
+			"validUntil":       validUntil.UTC().Format(time.RFC3339), "nodeUID": string(node.GetUID()),
+		}); err != nil {
 			return err
 		}
 	}

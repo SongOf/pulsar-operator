@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	storagev1 "github.com/SongOf/pulsar-operator/api/storage/v1alpha1"
 	"github.com/SongOf/pulsar-operator/internal/storage/model"
 	"github.com/google/uuid"
 )
@@ -50,7 +51,7 @@ func (s *Store) Seed(ctx context.Context) error {
 					return err
 				}
 			}
-			if err := s.Put(ctx, tx, "nodes", model.Object{"id": node, "name": node, "node": node, "zone": fmt.Sprintf("az-%d", 1+(n-1)/8), "state": "Ready", "disks": 6, "capacityBytes": 15840 * model.GiB, "allocatedBytes": 0}); err != nil {
+			if err := s.Put(ctx, tx, "nodes", model.Object{"id": node, "name": node, "node": node, "zone": fmt.Sprintf("az-%d", 1+(n-1)/8), "state": "Ready", "enrolled": n != 24, "disks": 6, "capacityBytes": 15840 * model.GiB, "allocatedBytes": 0}); err != nil {
 				return err
 			}
 		}
@@ -65,6 +66,15 @@ func (s *Store) Seed(ctx context.Context) error {
 			return err
 		}
 		pool, err := s.CreatePool(ctx, model.String(plan["planId"]), model.String(plan["confirmation"]))
+		if err != nil {
+			return err
+		}
+		typed, err := model.PoolIdentity(pool)
+		if err != nil {
+			return err
+		}
+		benchmark := typed.Status.Benchmark
+		pool, err = s.ReviewPool(ctx, model.String(pool["id"]), model.Object{"uid": pool["uid"], "resourceVersion": pool["resourceVersion"], "runID": benchmark.RunID, "resultDigest": benchmark.ResultDigest, "decision": "Approved", "note": "模拟环境预置已审核样例"})
 		if err != nil {
 			return err
 		}
@@ -114,7 +124,12 @@ func (s *Store) Plan(ctx context.Context, body model.Object) (model.Object, erro
 		if err != nil {
 			return err
 		}
-		if disk["node"] != node || disk["state"] != "Available" {
+		rawNode, err := s.Get(ctx, tx, "nodes", node)
+		if err != nil {
+			return err
+		}
+		demoDisk(disk, rawNode)
+		if disk["node"] != node || disk["canCreatePool"] != true {
 			return model.NewProblem(409, "磁盘不可接管或不属于选定节点")
 		}
 		return uniquePoolName(ctx, tx, name)
@@ -124,7 +139,7 @@ func (s *Store) Plan(ctx context.Context, body model.Object) (model.Object, erro
 	}
 	hash := sha256.Sum256([]byte(node + ":" + model.String(disk["serial"])))
 	vg := "df_" + hex.EncodeToString(hash[:8])
-	return s.SavePlan(ctx, model.Object{"name": name, "node": node, "diskIds": []string{id}, "disks": []model.Object{disk}, "vgName": vg, "confirmation": "接管 " + model.String(disk["serial"]),
+	return s.SavePlan(ctx, model.Object{"name": name, "node": node, "nodeUID": disk["nodeUID"], "diskIds": []string{id}, "disks": []model.Object{disk}, "vgName": vg, "confirmation": "接管 " + model.String(disk["serial"]),
 		"commands": [][]string{{"pvcreate", model.String(disk["path"])}, {"vgcreate", vg, model.String(disk["path"])}},
 		"warnings": []string{"模拟模式：不执行上述命令。", "真实模式会初始化所选空盘；LVM 不提供跨节点数据复制。"}})
 }
@@ -172,7 +187,12 @@ func (s *Store) CreatePool(ctx context.Context, planID, confirmation string) (mo
 		if !ok {
 			return fmt.Errorf("invalid persisted plan identity")
 		}
-		if disk["state"] != "Available" || disk["serial"] != expected["serial"] || disk["path"] != expected["path"] || disk["node"] != expected["node"] || model.Int64(disk["sizeBytes"]) != model.Int64(expected["sizeBytes"]) {
+		node, err := s.Get(ctx, tx, "nodes", model.String(plan["node"]))
+		if err != nil {
+			return err
+		}
+		demoDisk(disk, node)
+		if disk["canCreatePool"] != true || model.String(plan["nodeUID"]) == "" || disk["nodeUID"] != plan["nodeUID"] || disk["uid"] != expected["uid"] || disk["state"] != "Available" || disk["serial"] != expected["serial"] || disk["path"] != expected["path"] || disk["node"] != expected["node"] || model.Int64(disk["sizeBytes"]) != model.Int64(expected["sizeBytes"]) {
 			return model.NewProblem(409, "磁盘状态或身份已经改变，必须重新生成计划")
 		}
 		if err := uniquePoolName(ctx, tx, model.String(plan["name"])); err != nil {
@@ -183,8 +203,15 @@ func (s *Store) CreatePool(ctx context.Context, planID, confirmation string) (mo
 			return model.NewProblem(409, "磁盘容量不足，无法创建模拟存储池")
 		}
 		pool = model.Object{"id": pid, "name": plan["name"], "node": plan["node"], "vgName": vg, "capacityBytes": capacity, "allocatedBytes": int64(0), "availableBytes": capacity,
-			"state": "Ready", "diskIds": plan["diskIds"], "storageClass": "diskfleet-" + pid, "createdAt": model.Now()}
+			"initializationApproved": true, "state": "AwaitingReview", "diskIds": plan["diskIds"], "storageClass": "", "createdAt": model.Now(), "uid": uuid.NewString(), "resourceVersion": "1", "nodeUID": plan["nodeUID"], "topologyHostname": plan["node"]}
+		device := storagev1.Device{Path: model.String(disk["path"]), Serial: model.String(disk["serial"]), SizeBytes: model.Int64(disk["sizeBytes"])}
+		pool["devices"] = []storagev1.Device{device}
+		pool["benchmark"] = simulatedBenchmark(pool, device)
+		if err := demoPool(pool); err != nil {
+			return err
+		}
 		disk["state"], disk["poolId"] = "Managed", pid
+		disk["canCreatePool"] = false
 		if err := s.Put(ctx, tx, "disks", disk); err != nil {
 			return err
 		}
@@ -194,7 +221,7 @@ func (s *Store) CreatePool(ctx context.Context, planID, confirmation string) (mo
 		if err := s.ConsumePlan(ctx, tx, planID); err != nil {
 			return err
 		}
-		return s.Event(ctx, tx, "pool.ready", fmt.Sprintf("模拟接管 %s → %s", model.String(disk["serial"]), model.String(pool["name"])), model.String(pool["node"]), "info")
+		return s.Event(ctx, tx, "pool.benchmark-completed", fmt.Sprintf("模拟接管与压测完成，等待人工审核 %s → %s", model.String(disk["serial"]), model.String(pool["name"])), model.String(pool["node"]), "info")
 	})
 	return pool, err
 }
@@ -239,7 +266,10 @@ func (s *Store) CreateVolume(ctx context.Context, body model.Object) (model.Obje
 		if err != nil {
 			return err
 		}
-		if pool["state"] != "Ready" || size > model.Int64(pool["availableBytes"]) {
+		if err := demoPool(pool); err != nil {
+			return err
+		}
+		if pool["canCreateVolume"] != true || size > model.Int64(pool["availableBytes"]) {
 			return model.NewProblem(409, "存储池不可用或剩余容量不足")
 		}
 		key := uuid.NewString()

@@ -1,5 +1,6 @@
 // Package lvm reconciles one-disk volume groups using the ownership journal
-// written by the original DiskFleet agent. It never formats, wipes or deletes.
+// written by the original DiskFleet agent. Initialization never formats, wipes,
+// or deletes existing media. Benchmark cleanup removes only its own verified LV.
 package lvm
 
 import (
@@ -60,6 +61,21 @@ func (b *Backend) run(ctx context.Context, args []string) ([]byte, error) {
 // commands followed by a crash are recovered using a preallocated PV UUID and
 // VG tag; an owned object that has disappeared is never recreated automatically.
 func (b *Backend) EnsurePool(ctx context.Context, vgName string, devices []model.Device, approved bool, ownerUID string, allowLegacyMigration bool) (model.PoolResult, error) {
+	return b.ensurePool(ctx, vgName, devices, approved, ownerUID, allowLegacyMigration, nil)
+}
+
+// EnsurePoolGuarded additionally revalidates live Kubernetes authorization after
+// waiting for the host lock and immediately before every device mutation. The
+// guard must verify the current pool/node identity and relevant approval, and
+// must not acquire the LVM lock itself.
+func (b *Backend) EnsurePoolGuarded(ctx context.Context, vgName string, devices []model.Device, approved bool, ownerUID string, allowLegacyMigration bool, guard func(context.Context) error) (model.PoolResult, error) {
+	if guard == nil {
+		return model.PoolResult{}, errors.New("pool live authorization guard is required")
+	}
+	return b.ensurePool(ctx, vgName, devices, approved, ownerUID, allowLegacyMigration, guard)
+}
+
+func (b *Backend) ensurePool(ctx context.Context, vgName string, devices []model.Device, approved bool, ownerUID string, allowLegacyMigration bool, guard func(context.Context) error) (model.PoolResult, error) {
 	if !approved || !b.WritesEnabled {
 		return model.PoolResult{}, errors.New("disk writes disabled: explicit approval and ENABLE_DISK_WRITES=true are required")
 	}
@@ -75,7 +91,22 @@ func (b *Backend) EnsurePool(ctx context.Context, vgName string, devices []model
 	if b.StateDir == "" || b.Inventory == nil {
 		return model.PoolResult{}, errors.New("state directory and disk inventory are required")
 	}
-	if err := ctx.Err(); err != nil {
+	authorize := func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !approved || !b.WritesEnabled {
+			return errors.New("disk writes disabled: explicit approval and ENABLE_DISK_WRITES=true are required")
+		}
+		if guard != nil {
+			if err := guard(ctx); err != nil {
+				// Kubernetes errors can contain arbitrary backend response text.
+				return errors.New("pool live authorization rejected")
+			}
+		}
+		return nil
+	}
+	if err := authorize(ctx); err != nil {
 		return model.PoolResult{}, err
 	}
 	if err := os.MkdirAll(b.StateDir, 0700); err != nil {
@@ -90,7 +121,19 @@ func (b *Backend) EnsurePool(ctx context.Context, vgName string, devices []model
 		return model.PoolResult{}, err
 	}
 	defer unix.Flock(int(lock.Fd()), unix.LOCK_UN)
-	return b.ensureLocked(ctx, vgName, devices[0], ownerUID, allowLegacyMigration)
+	if err := authorize(ctx); err != nil {
+		return model.PoolResult{}, err
+	}
+	guarded := *b
+	guarded.Runner = func(ctx context.Context, args []string) ([]byte, error) {
+		if args[0] == "pvcreate" || args[0] == "vgcreate" {
+			if err := authorize(ctx); err != nil {
+				return nil, err
+			}
+		}
+		return b.run(ctx, args)
+	}
+	return guarded.ensureLocked(ctx, vgName, devices[0], ownerUID, allowLegacyMigration)
 }
 
 func acquireLock(ctx context.Context, file *os.File) error {
